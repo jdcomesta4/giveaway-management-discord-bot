@@ -37,7 +37,11 @@ class WheelGenerator {
                 slowFrames: 30,         // 1.5 seconds
                 stopFrames: 15,         // 0.75 seconds
                 victoryFrames: 35       // 1.75 seconds
-            }
+            },
+            
+            // Looping wheel settings
+            loopingFrames: 60,      // Number of frames for looping wheel
+            loopRotationSpeed: 0.02 // Slow rotation speed for looping
         };
         
         // Color palette for wheel sections
@@ -86,6 +90,7 @@ class WheelGenerator {
             settings.phases.spinFrames = Math.max(30, settings.phases.spinFrames - 10);
             settings.phases.slowFrames = Math.max(20, settings.phases.slowFrames - 5);
             settings.phases.victoryFrames = Math.max(25, settings.phases.victoryFrames - 10);
+            settings.loopingFrames = Math.max(40, settings.loopingFrames - 10);
         }
         
         if (participantCount > 25) {
@@ -98,6 +103,7 @@ class WheelGenerator {
             settings.phases.spinFrames = Math.max(20, settings.phases.spinFrames - 10);
             settings.phases.slowFrames = Math.max(15, settings.phases.slowFrames - 5);
             settings.phases.victoryFrames = Math.max(15, settings.phases.victoryFrames - 10);
+            settings.loopingFrames = Math.max(30, settings.loopingFrames - 10);
         }
         
         // Recalculate derived values
@@ -126,6 +132,114 @@ class WheelGenerator {
         // Very rough estimate in MB
         const estimate = (totalFrames * pixelCount * complexityFactor * qualityFactor) / (1024 * 1024 * 100);
         return Math.max(0.1, estimate).toFixed(1);
+    }
+
+    // NEW: Generate looping wheel GIF for showcurrentwheelstate
+    async generateLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
+        try {
+            const participantCount = Object.keys(participants).length;
+            logger.wheel(`Generating looping wheel GIF for ${participantCount} participants`);
+            
+            const settings = this.getOptimizedSettings(participantCount, userOptions);
+            const participantData = this.prepareParticipantData(participants);
+            
+            if (participantData.length === 0) {
+                return this.generateEmptyWheelGif(giveawayName, settings);
+            }
+            
+            // Initialize GIF encoder
+            const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
+            
+            // Configure encoder for smaller file size
+            if (encoder.setQuality) encoder.setQuality(settings.quality);
+            if (encoder.setRepeat) encoder.setRepeat(0); // Loop forever
+            if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
+            
+            encoder.start();
+            
+            // Generate looping frames
+            await this.generateLoopingFrames(encoder, participantData, giveawayName, settings);
+            
+            encoder.finish();
+            
+            const buffer = encoder.out.getData();
+            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+            
+            logger.wheel(`Generated looping wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
+            
+            // Check if file is too large
+            if (buffer.length > 10 * 1024 * 1024) { // 10MB limit
+                logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
+                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
+            }
+            
+            return buffer;
+            
+        } catch (error) {
+            logger.error('Failed to generate looping wheel:', error);
+            throw error;
+        }
+    }
+
+    async generateLoopingFrames(encoder, participantData, giveawayName, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        for (let frame = 0; frame < settings.loopingFrames; frame++) {
+            const rotation = frame * settings.loopRotationSpeed;
+            
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings, rotation);
+            this.drawPointer(ctx, settings);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
+            
+            encoder.addFrame(ctx);
+        }
+    }
+
+    async generateEmptyWheelGif(giveawayName, settings) {
+        const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
+        
+        if (encoder.setQuality) encoder.setQuality(settings.quality);
+        if (encoder.setRepeat) encoder.setRepeat(0);
+        if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
+        
+        encoder.start();
+        
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        // Generate a few frames of empty wheel
+        for (let frame = 0; frame < 30; frame++) {
+            this.drawBackground(ctx, settings);
+            
+            ctx.beginPath();
+            ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#444444';
+            ctx.fill();
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            const fontSize = Math.max(16, settings.canvasSize / 25);
+            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillText('No Participants', settings.centerX, settings.centerY - 10);
+            
+            ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
+            ctx.fillText('Add purchases to see wheel', settings.centerX, settings.centerY + 10);
+            
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
+            
+            encoder.addFrame(ctx);
+        }
+        
+        encoder.finish();
+        return encoder.out.getData();
     }
 
     // Generate static wheel showing current participants
@@ -245,7 +359,9 @@ class WheelGenerator {
                 sectionAngle: sectionAngle,
                 percentage: percentage,
                 color: this.colors[index % this.colors.length],
-                textColor: this.getContrastColor(this.colors[index % this.colors.length])
+                textColor: this.getContrastColor(this.colors[index % this.colors.length]),
+                // FIXED: Store display name properly for showing in wheel
+                displayName: participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`
             };
             
             currentAngle += sectionAngle;
@@ -312,7 +428,8 @@ class WheelGenerator {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        const displayName = participant.displayName || `User ${participant.userId.slice(0, 4)}`;
+        // FIXED: Use the proper display name instead of generic "User..."
+        const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
         const entriesText = `${participant.entries} entries`;
         
         // Simplified text drawing (no stroke for performance)
@@ -540,7 +657,8 @@ class WheelGenerator {
     }
 
     drawWinnerText(ctx, winner, frame, settings) {
-        const displayName = winner.displayName || `User ${winner.userId.slice(0, 8)}`;
+        // FIXED: Use proper display name instead of generic "User..."
+        const displayName = winner.displayName || winner.username || `User ${winner.userId.slice(-4)}`;
         
         ctx.save();
         

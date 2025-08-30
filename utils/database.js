@@ -471,6 +471,52 @@ class Database {
         }
     }
 
+    async updateGiveawayParticipantWithUserInfo(giveawayId, userId, additionalEntries, vbucksSpent, userInfo) {
+    try {
+        const giveaway = await this.getGiveaway(giveawayId);
+        if (!giveaway) {
+            throw new Error(`Giveaway not found: ${giveawayId}`);
+        }
+
+        if (!giveaway.participants) {
+            giveaway.participants = {};
+        }
+
+        if (!giveaway.participants[userId]) {
+            giveaway.participants[userId] = {
+                userId,
+                entries: 0,
+                vbucksSpent: 0,
+                purchases: [],
+                // Store user display information for wheel display
+                username: userInfo.username,
+                displayName: userInfo.displayName || userInfo.username,
+                discriminator: userInfo.discriminator
+            };
+        } else {
+            // Update existing participant with latest user info (in case username changed)
+            giveaway.participants[userId].username = userInfo.username;
+            giveaway.participants[userId].displayName = userInfo.displayName || userInfo.username;
+            giveaway.participants[userId].discriminator = userInfo.discriminator;
+        }
+
+        giveaway.participants[userId].entries += additionalEntries;
+        giveaway.participants[userId].vbucksSpent += vbucksSpent;
+        giveaway.totalEntries = (giveaway.totalEntries || 0) + additionalEntries;
+
+        await this.updateGiveaway(giveawayId, {
+            participants: giveaway.participants,
+            totalEntries: giveaway.totalEntries
+        });
+
+        logger.debug(`Updated participant ${userId} in giveaway ${giveawayId} with user info`);
+
+    } catch (error) {
+        logger.error('Failed to update giveaway participant with user info:', error);
+        throw error;
+    }
+}
+
     async recalculateGiveawayEntries(giveawayId) {
         try {
             const giveaway = await this.getGiveaway(giveawayId);

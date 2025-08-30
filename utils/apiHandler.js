@@ -202,26 +202,34 @@ class APIHandler {
         }
     }
 
-    // Creator code endpoint
+    // FIXED: Creator code endpoint - Updated to use v2/creatorcode
     async getCreatorCode(code) {
         try {
             logger.debug(`Fetching creator code info: ${code}`);
             
-            const response = await this.fortniteApiClient.get(`/v1/creatorcode/${code}`);
+            // Updated endpoint to v2/creatorcode as per documentation
+            const response = await this.fortniteApiClient.get(`/v2/creatorcode?name=${encodeURIComponent(code)}`);
             
-            if (response.data.status !== 200) {
+            if (!response.data || response.data.status !== 200) {
+                logger.debug(`Creator code API returned non-200 status: ${response.data?.status}`);
                 return null;
             }
 
             const data = response.data.data;
+            
+            if (!data) {
+                logger.debug(`Creator code not found: ${code}`);
+                return null;
+            }
+
             return {
-                code: data.code,
+                code: data.code || code,
                 account: {
-                    id: data.account?.id,
-                    name: data.account?.name
+                    id: data.account?.id || null,
+                    name: data.account?.name || null
                 },
-                status: data.status,
-                verified: data.verified || false
+                status: data.status || 'ACTIVE',
+                verified: data.verified !== undefined ? data.verified : true
             };
         } catch (error) {
             if (error.response?.status === 404) {
@@ -230,7 +238,7 @@ class APIHandler {
             }
             
             logger.error('Failed to fetch creator code:', error);
-            throw error;
+            throw new Error(`Creator code API error: ${error.message}`);
         }
     }
 

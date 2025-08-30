@@ -174,6 +174,19 @@ module.exports = {
             // Save purchase
             const createdPurchase = await database.createPurchase(purchaseData);
 
+            // FIXED: Update giveaway participant data with user display name
+            await database.updateGiveawayParticipantWithUserInfo(
+                giveaway.id,
+                targetUser.id,
+                entriesEarned,
+                vbucksSpent,
+                {
+                    username: targetUser.username,
+                    displayName: targetUser.displayName || targetUser.username,
+                    discriminator: targetUser.discriminator
+                }
+            );
+
             // Create success embed
             const embed = new EmbedBuilder()
                 .setColor('#00FF00')

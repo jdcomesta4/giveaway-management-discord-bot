@@ -88,16 +88,18 @@ module.exports = {
                     });
                 }
 
-                // Generate static wheel image
+                // Generate LOOPING wheel GIF instead of static image
                 try {
-                    logger.wheel(`Generating static wheel for ${giveaway.id}`);
-                    const wheelBuffer = await wheelGenerator.generateStaticWheel(
+                    logger.wheel(`Generating looping wheel GIF for ${giveaway.id}`);
+                    
+                    // Generate looping wheel animation
+                    const wheelBuffer = await wheelGenerator.generateLoopingWheel(
                         giveaway.participants, 
                         giveaway.name
                     );
 
                     const attachment = new AttachmentBuilder(wheelBuffer, { 
-                        name: `wheel-state-${giveaway.id}-${Date.now()}.png` 
+                        name: `wheel-state-${giveaway.id}-${Date.now()}.gif` 
                     });
 
                     statusEmbed.setImage(`attachment://${attachment.name}`);
@@ -108,12 +110,12 @@ module.exports = {
                     });
 
                 } catch (wheelError) {
-                    logger.error('Failed to generate wheel image:', wheelError);
+                    logger.error('Failed to generate wheel GIF:', wheelError);
                     
                     // Send embed without wheel image
                     statusEmbed.addFields({
                         name: '⚠️ Wheel Generation',
-                        value: 'Could not generate wheel image. Showing text summary only.',
+                        value: 'Could not generate wheel GIF. Showing text summary only.',
                         inline: false
                     });
 
