@@ -1,8 +1,8 @@
-const { Collection } = require('discord.js');
+const { Collection, Events } = require('discord.js');
 const logger = require('../utils/logger');
 
 module.exports = {
-    name: 'interactionCreate',
+    name: Events.InteractionCreate, // Use the proper Events enum
     async execute(interaction, bot) {
         // Only handle slash commands
         if (!interaction.isChatInputCommand()) return;

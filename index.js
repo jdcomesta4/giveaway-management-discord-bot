@@ -108,70 +108,91 @@ class FortniteGiveawayBot {
     }
 
     async loadCommands() {
-        logger.info('📁 Loading commands...');
+    logger.info('📁 Loading commands...');
+    
+    const commandFolders = ['slash', 'prefix'];
+    let commandCount = 0;
+
+    for (const folder of commandFolders) {
+        const commandsPath = path.join(__dirname, 'commands', folder);
         
-        const commandFolders = ['slash', 'prefix'];
-        let commandCount = 0;
-
-        for (const folder of commandFolders) {
-            const commandsPath = path.join(__dirname, 'commands', folder);
-            
-            if (!await fs.pathExists(commandsPath)) {
-                logger.warn(`Commands folder not found: ${commandsPath}`);
-                continue;
-            }
-
-            const commandFiles = (await fs.readdir(commandsPath))
-                .filter(file => file.endsWith('.js'));
-
-            for (const file of commandFiles) {
-                const filePath = path.join(commandsPath, file);
-                const command = require(filePath);
-
-                if ('data' in command && 'execute' in command) {
-                    this.commands.set(command.data.name, command);
-                    commandCount++;
-                    logger.debug(`Loaded command: ${command.data.name}`);
-                } else {
-                    logger.warn(`Invalid command file: ${filePath}`);
-                }
-            }
+        if (!await fs.pathExists(commandsPath)) {
+            logger.debug(`Commands folder not found: ${commandsPath} - skipping`);
+            continue;
         }
 
-        logger.info(`✅ Loaded ${commandCount} commands`);
-    }
-
-    async loadEvents() {
-        logger.info('📁 Loading events...');
-        
-        const eventsPath = path.join(__dirname, 'events');
-        
-        if (!await fs.pathExists(eventsPath)) {
-            logger.warn('Events folder not found');
-            return;
-        }
-
-        const eventFiles = (await fs.readdir(eventsPath))
+        const commandFiles = (await fs.readdir(commandsPath))
             .filter(file => file.endsWith('.js'));
 
-        let eventCount = 0;
-
-        for (const file of eventFiles) {
-            const filePath = path.join(eventsPath, file);
-            const event = require(filePath);
-
-            if (event.once) {
-                this.client.once(event.name, (...args) => event.execute(...args, this));
-            } else {
-                this.client.on(event.name, (...args) => event.execute(...args, this));
-            }
+        for (const file of commandFiles) {
+            const filePath = path.join(commandsPath, file);
             
-            eventCount++;
-            logger.debug(`Loaded event: ${event.name}`);
-        }
+            // Clear require cache to allow hot reloading during development
+            delete require.cache[require.resolve(filePath)];
+            
+            const command = require(filePath);
 
-        logger.info(`✅ Loaded ${eventCount} events`);
+            if ('data' in command && 'execute' in command) {
+                this.commands.set(command.data.name, command);
+                commandCount++;
+                logger.debug(`Loaded command: ${command.data.name}`);
+            } else {
+                logger.warn(`Invalid command file: ${filePath} - missing 'data' or 'execute' property`);
+            }
+        }
     }
+
+    logger.info(`✅ Loaded ${commandCount} commands`);
+}
+
+    async loadEvents() {
+    logger.info('📁 Loading events...');
+    
+    const eventsPath = path.join(__dirname, 'events');
+    
+    if (!await fs.pathExists(eventsPath)) {
+        logger.warn('Events folder not found');
+        return;
+    }
+
+    const eventFiles = (await fs.readdir(eventsPath))
+        .filter(file => file.endsWith('.js'));
+
+    let eventCount = 0;
+
+    for (const file of eventFiles) {
+        const filePath = path.join(eventsPath, file);
+        
+        // Clear require cache for hot reloading
+        delete require.cache[require.resolve(filePath)];
+        
+        const event = require(filePath);
+
+        if (event.once) {
+            this.client.once(event.name, (...args) => {
+                // For clientReady event, we need to pass the bot instance as second parameter
+                if (event.name === 'clientReady') {
+                    event.execute(args[0], this); // client, bot
+                } else {
+                    event.execute(...args, this);
+                }
+            });
+        } else {
+            this.client.on(event.name, (...args) => {
+                if (event.name === 'clientReady') {
+                    event.execute(args[0], this);
+                } else {
+                    event.execute(...args, this);
+                }
+            });
+        }
+        
+        eventCount++;
+        logger.debug(`Loaded event: ${event.name}`);
+    }
+
+    logger.info(`✅ Loaded ${eventCount} events`);
+}
 
     async initializeBackups() {
         logger.info('💾 Initializing backup system...');
