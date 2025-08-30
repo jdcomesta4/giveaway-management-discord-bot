@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discor
 const database = require('../../utils/database');
 const wheelGenerator = require('../../utils/wheelGenerator');
 const logger = require('../../utils/logger');
+const moment = require('moment-timezone');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -17,6 +18,7 @@ module.exports = {
             await interaction.deferReply();
 
             const giveawayInput = interaction.options.getString('giveaway');
+            const stateTime = new Date(); // Capture when command was run
 
             // Find giveaway
             const giveaway = await database.getGiveaway(giveawayInput);
@@ -27,16 +29,16 @@ module.exports = {
                 });
             }
 
-            const participantCount = Object.keys(giveaway.participants).length;
+            const participantCount = Object.keys(giveaway.participants || {}).length;
 
-            // Create status embed
+            // Create status embed with WheelOfNames style
             const statusEmbed = new EmbedBuilder()
-                .setColor(giveaway.active ? '#0099FF' : '#808080')
+                .setColor(giveaway.active ? '#007BFF' : '#6C757D')
                 .setTitle(`🎡 Current Wheel State: ${giveaway.name}`)
-                .setDescription(`Showing current participants and their entries`)
+                .setDescription(`Live view of participants and their entries`)
                 .addFields(
                     {
-                        name: '📋 Giveaway Info',
+                        name: '📋 Giveaway Information',
                         value: [
                             `**ID:** \`${giveaway.id}\``,
                             `**Status:** ${giveaway.active ? '🟢 Active' : '🔴 Inactive'}`,
@@ -47,16 +49,17 @@ module.exports = {
                         inline: false
                     },
                     {
-                        name: '📊 Statistics',
+                        name: '📊 Current Statistics',
                         value: [
                             `**Total Participants:** ${participantCount}`,
                             `**Total Entries:** ${giveaway.totalEntries || 0}`,
-                            `**Total V-Bucks Tracked:** ${this.calculateTotalVbucks(giveaway.participants)}`
+                            `**Total V-Bucks Tracked:** ${this.calculateTotalVbucks(giveaway.participants).toLocaleString()}`,
+                            `**Average Entries per User:** ${participantCount > 0 ? Math.round((giveaway.totalEntries || 0) / participantCount) : 0}`
                         ].join('\n'),
                         inline: false
                     }
                 )
-                .setTimestamp();
+                .setTimestamp(stateTime);
 
             // Add participant breakdown if there are participants
             if (participantCount > 0) {
@@ -70,12 +73,14 @@ module.exports = {
                     const percentage = giveaway.totalEntries > 0 ? 
                         ((entries / giveaway.totalEntries) * 100).toFixed(1) : 0;
                     
-                    return `**${index + 1}.** <@${participant.userId}>\n` +
-                           `   🎫 ${entries} entries (${percentage}%) | 💰 ${vbucks} V-Bucks`;
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🎫';
+                    
+                    return `${medal} **<@${participant.userId}>**\n` +
+                           `   └ ${entries} entries (${percentage}%) • ${vbucks.toLocaleString()} V-Bucks`;
                 }).join('\n\n');
 
                 statusEmbed.addFields({
-                    name: `👥 Participants ${participantCount > 10 ? '(Top 10)' : ''}`,
+                    name: `👥 Participants Leaderboard ${participantCount > 10 ? '(Top 10)' : ''}`,
                     value: participantList,
                     inline: false
                 });
@@ -88,35 +93,90 @@ module.exports = {
                     });
                 }
 
-                // Generate LOOPING wheel GIF instead of static image
+                // Generate looping wheel GIF with WheelOfNames style
                 try {
-                    logger.wheel(`Generating looping wheel GIF for ${giveaway.id}`);
+                    logger.wheel(`Generating looping wheel state GIF for ${giveaway.id}`);
                     
-                    // Generate looping wheel animation
+                    // Use optimized settings for wheel state display
+                    const wheelOptions = {
+                        quality: 12,
+                        frameDelay: 50,
+                        canvasSize: 500,
+                        loopingFrames: 60
+                    };
+                    
+                    // Adjust for participant count
+                    if (participantCount > 15) {
+                        wheelOptions.quality = 15;
+                        wheelOptions.frameDelay = 60;
+                        wheelOptions.canvasSize = 450;
+                        wheelOptions.loopingFrames = 50;
+                    }
+                    if (participantCount > 25) {
+                        wheelOptions.quality = 18;
+                        wheelOptions.frameDelay = 70;
+                        wheelOptions.canvasSize = 400;
+                        wheelOptions.loopingFrames = 40;
+                    }
+                    
                     const wheelBuffer = await wheelGenerator.generateLoopingWheel(
                         giveaway.participants, 
-                        giveaway.name
+                        giveaway.name,
+                        wheelOptions
                     );
 
+                    const fileSizeMB = (wheelBuffer.length / 1024 / 1024).toFixed(1);
                     const attachment = new AttachmentBuilder(wheelBuffer, { 
-                        name: `wheel-state-${giveaway.id}-${Date.now()}.gif` 
+                        name: `wheel-state-${giveaway.id}-${Date.now()}.gif`,
+                        description: `Current wheel state for ${giveaway.name}`
                     });
 
-                    statusEmbed.setImage(`attachment://${attachment.name}`);
+                    // Add wheel generation info to embed
+                    statusEmbed.addFields({
+                        name: '🎡 Live Wheel Animation',
+                        value: `Generated **WheelOfNames-style** looping animation (${fileSizeMB}MB)\nShowing real-time participant distribution`,
+                        inline: false
+                    });
+
+                    // Add timestamp information
+                    statusEmbed.addFields({
+                        name: '🕐 Generated At',
+                        value: this.formatStateTimestamp(stateTime),
+                        inline: false
+                    });
+
+                    statusEmbed.setFooter({
+                        text: `Giveaway ID: ${giveaway.id} | Use code 'sheready' in item shop!`,
+                        iconURL: bot.client.user.displayAvatarURL()
+                    });
 
                     await interaction.editReply({ 
                         embeds: [statusEmbed], 
                         files: [attachment] 
                     });
 
+                    logger.wheel(`Wheel state displayed for ${giveaway.id} - ${participantCount} participants (${fileSizeMB}MB)`);
+
                 } catch (wheelError) {
-                    logger.error('Failed to generate wheel GIF:', wheelError);
+                    logger.error('Failed to generate wheel state GIF:', wheelError);
                     
-                    // Send embed without wheel image
+                    // Send embed without wheel image but with error info
                     statusEmbed.addFields({
-                        name: '⚠️ Wheel Generation',
-                        value: 'Could not generate wheel GIF. Showing text summary only.',
+                        name: '⚠️ Wheel Animation',
+                        value: `Could not generate wheel GIF: ${this.getSimpleErrorMessage(wheelError.message)}\nShowing text summary instead.`,
                         inline: false
+                    });
+
+                    // Add timestamp information
+                    statusEmbed.addFields({
+                        name: '🕐 Generated At',
+                        value: this.formatStateTimestamp(stateTime),
+                        inline: false
+                    });
+
+                    statusEmbed.setFooter({
+                        text: `Giveaway ID: ${giveaway.id} | Use code 'sheready' in item shop!`,
+                        iconURL: bot.client.user.displayAvatarURL()
                     });
 
                     await interaction.editReply({ embeds: [statusEmbed] });
@@ -130,6 +190,18 @@ module.exports = {
                     inline: false
                 });
 
+                // Add timestamp information
+                statusEmbed.addFields({
+                    name: '🕐 Generated At',
+                    value: this.formatStateTimestamp(stateTime),
+                    inline: false
+                });
+
+                statusEmbed.setFooter({
+                    text: `Giveaway ID: ${giveaway.id} | Use code 'sheready' in item shop!`,
+                    iconURL: bot.client.user.displayAvatarURL()
+                });
+
                 await interaction.editReply({ embeds: [statusEmbed] });
             }
 
@@ -139,9 +211,14 @@ module.exports = {
             logger.error('Failed to show wheel state:', error);
             
             const errorEmbed = new EmbedBuilder()
-                .setColor('#FF0000')
+                .setColor('#DC3545')
                 .setTitle('❌ Failed to Show Wheel State')
                 .setDescription('An error occurred while generating the wheel state.')
+                .addFields({
+                    name: '🕐 Error Time',
+                    value: this.formatStateTimestamp(new Date()),
+                    inline: false
+                })
                 .setTimestamp();
 
             if (interaction.deferred) {
@@ -152,9 +229,43 @@ module.exports = {
         }
     },
 
+    // Calculate total V-Bucks spent by all participants
     calculateTotalVbucks(participants) {
+        if (!participants || typeof participants !== 'object') {
+            return 0;
+        }
+        
         return Object.values(participants).reduce((total, participant) => {
             return total + (participant.vbucksSpent || 0);
         }, 0);
+    },
+
+    // Format state timestamp for multiple timezones
+    formatStateTimestamp(stateTime) {
+        const utc1 = moment(stateTime).tz('Europe/London');
+        const eastern = moment(stateTime).tz('America/New_York');
+        const pacific = moment(stateTime).tz('America/Los_Angeles');
+        
+        return [
+            `🌍 **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `🇺🇸 **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `🇺🇸 **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
+        ].join('\n');
+    },
+
+    // Simplify error messages for users
+    getSimpleErrorMessage(errorMessage) {
+        if (errorMessage.includes('too large') || errorMessage.includes('limit')) {
+            return 'File size too large for Discord';
+        } else if (errorMessage.includes('timeout')) {
+            return 'Generation took too long';
+        } else if (errorMessage.includes('Canvas') || errorMessage.includes('canvas')) {
+            return 'Image generation error';
+        } else if (errorMessage.includes('GIF') || errorMessage.includes('gif')) {
+            return 'Animation encoding error';
+        } else if (errorMessage.includes('Memory') || errorMessage.includes('memory')) {
+            return 'Insufficient memory';
+        }
+        return 'Generation error';
     }
 };

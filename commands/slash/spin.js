@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discor
 const database = require('../../utils/database');
 const wheelGenerator = require('../../utils/wheelGenerator');
 const logger = require('../../utils/logger');
+const moment = require('moment-timezone');
 
 // Discord file size limits (in bytes)
 const DISCORD_FREE_LIMIT = 10 * 1024 * 1024; // 10MB
@@ -26,6 +27,9 @@ module.exports = {
 
             const giveawayInput = interaction.options.getString('giveaway');
             const skipAnimation = interaction.options.getBoolean('no-animation') || false;
+            
+            // Capture spin time immediately for timestamp
+            const spinTime = new Date();
 
             // Find giveaway
             const giveaway = await database.getGiveaway(giveawayInput);
@@ -72,26 +76,37 @@ module.exports = {
                 });
             }
 
-            // Send initial spinning message
+            // Send initial spinning message with timestamp
             const spinningEmbed = new EmbedBuilder()
                 .setColor('#FFD700')
                 .setTitle('🎡 Spinning the Wheel!')
                 .setDescription(
                     skipAnimation 
                         ? `Selecting winner for **${giveaway.name}**...`
-                        : `Generating animated wheel for **${giveaway.name}**...\n\n⏳ This may take a few seconds...`
+                        : `Generating animated wheel for **${giveaway.name}**...\n\n⏳ This may take a few seconds for the best experience...`
                 )
-                .addFields({
-                    name: '🎯 Wheel Details',
-                    value: [
-                        `**Participants:** ${participantCount}`,
-                        `**Total Entries:** ${giveaway.totalEntries}`,
-                        `**Selected Winner:** ||<@${winner.userId}>||`
-                    ].join('\n'),
-                    inline: false
-                })
-                .setTimestamp()
-                .setFooter({ text: skipAnimation ? 'Selecting winner...' : 'Wheel is spinning...' });
+                .addFields(
+                    {
+                        name: '🎯 Wheel Details',
+                        value: [
+                            `**Participants:** ${participantCount}`,
+                            `**Total Entries:** ${giveaway.totalEntries}`,
+                            `**V-Bucks per Entry:** ${giveaway.vbucksPerEntry}`,
+                            `**Selected Winner:** ||<@${winner.userId}>||`
+                        ].join('\n'),
+                        inline: false
+                    },
+                    {
+                        name: '🕐 Spin Time',
+                        value: this.formatSpinTimestamp(spinTime),
+                        inline: false
+                    }
+                )
+                .setTimestamp(spinTime)
+                .setFooter({ 
+                    text: skipAnimation ? 'Selecting winner...' : 'Generating wheel animation...',
+                    iconURL: bot.client.user.displayAvatarURL()
+                });
 
             await interaction.editReply({ embeds: [spinningEmbed] });
 
@@ -105,27 +120,26 @@ module.exports = {
                     
                     // Generate with optimized settings for smaller file size
                     const wheelOptions = {
-                        quality: 20,        // Higher number = lower quality = smaller file
-                        frameDelay: 100,    // Longer delay = fewer frames per second = smaller file
-                        maxFrames: 60,      // Limit total frames
-                        canvasSize: 300,    // Smaller canvas = smaller file
+                        quality: 15,        // Balanced quality
+                        frameDelay: 40,     // 25fps for smooth animation
+                        canvasSize: 500,    // Good quality size
                         participants: participantCount
                     };
                     
                     // Adjust settings based on participant count to control file size
-                    if (participantCount > 10) {
-                        wheelOptions.quality = 25;
-                        wheelOptions.frameDelay = 150;
-                        wheelOptions.maxFrames = 40;
+                    if (participantCount > 15) {
+                        wheelOptions.quality = 18;
+                        wheelOptions.frameDelay = 50;
+                        wheelOptions.canvasSize = 450;
                     }
-                    if (participantCount > 20) {
-                        wheelOptions.quality = 30;
-                        wheelOptions.frameDelay = 200;
-                        wheelOptions.maxFrames = 30;
+                    if (participantCount > 25) {
+                        wheelOptions.quality = 22;
+                        wheelOptions.frameDelay = 60;
+                        wheelOptions.canvasSize = 400;
                     }
 
                     // Set timeout based on participant count
-                    const timeoutMs = Math.min(30000, 5000 + (participantCount * 500));
+                    const timeoutMs = Math.min(45000, 8000 + (participantCount * 800));
                     
                     const wheelPromise = wheelGenerator.generateSpinningWheel(
                         giveaway.participants, 
@@ -159,12 +173,12 @@ module.exports = {
             // Update giveaway with winner regardless of wheel success
             await database.updateGiveaway(giveaway.id, { 
                 winner: winner.userId,
-                completedAt: new Date().toISOString()
+                completedAt: spinTime.toISOString()
             });
 
-            // Create winner announcement embed
+            // Create winner announcement embed with enhanced WheelOfNames style
             const winnerEmbed = new EmbedBuilder()
-                .setColor('#00FF00')
+                .setColor('#28A745')
                 .setTitle('🎉 WINNER SELECTED! 🎉')
                 .setDescription(`**${giveaway.name}** has been completed!`)
                 .addFields(
@@ -174,13 +188,12 @@ module.exports = {
                         inline: true
                     },
                     {
-                        name: '🎫 Winning Entries',
-                        value: `${winner.entries} entries`,
-                        inline: true
-                    },
-                    {
-                        name: '💰 Total V-Bucks',
-                        value: `${winner.vbucksSpent} V-Bucks`,
+                        name: '🎫 Winning Details',
+                        value: [
+                            `**Entries:** ${winner.entries}`,
+                            `**V-Bucks Spent:** ${winner.vbucksSpent}`,
+                            `**Win Chance:** ${((winner.entries / giveaway.totalEntries) * 100).toFixed(2)}%`
+                        ].join('\n'),
                         inline: true
                     },
                     {
@@ -188,18 +201,23 @@ module.exports = {
                         value: [
                             `**Total Participants:** ${participantCount}`,
                             `**Total Entries:** ${giveaway.totalEntries}`,
-                            `**Winner's Chance:** ${((winner.entries / giveaway.totalEntries) * 100).toFixed(2)}%`
+                            `**Total V-Bucks Tracked:** ${Object.values(giveaway.participants).reduce((sum, p) => sum + p.vbucksSpent, 0).toLocaleString()}`
                         ].join('\n'),
+                        inline: false
+                    },
+                    {
+                        name: '🕐 Spin Information',
+                        value: this.formatSpinTimestamp(spinTime),
                         inline: false
                     }
                 )
-                .setTimestamp()
+                .setTimestamp(spinTime)
                 .setFooter({
-                    text: `Giveaway ID: ${giveaway.id}`,
+                    text: `Giveaway ID: ${giveaway.id} | Use code 'sheready' in the item shop!`,
                     iconURL: bot.client.user.displayAvatarURL()
                 });
 
-            // Add wheel status information
+            // Add wheel generation status
             if (skipAnimation) {
                 winnerEmbed.addFields({
                     name: '⚡ Quick Selection',
@@ -208,8 +226,15 @@ module.exports = {
                 });
             } else if (wheelError) {
                 winnerEmbed.addFields({
-                    name: '⚠️ Animation Note',
-                    value: `Wheel animation could not be generated: ${wheelError.message}\nWinner selection was still completed successfully.`,
+                    name: '⚠️ Animation Status',
+                    value: `Wheel animation could not be generated: ${this.getSimpleErrorMessage(wheelError.message)}\n\n*Winner selection was completed successfully.*`,
+                    inline: false
+                });
+            } else if (wheelBuffer) {
+                const fileSizeMB = (wheelBuffer.length / 1024 / 1024).toFixed(1);
+                winnerEmbed.addFields({
+                    name: '🎡 Wheel Animation',
+                    value: `Generated wheel animation (${fileSizeMB}MB) with **WheelOfNames-style** physics simulation!`,
                     inline: false
                 });
             }
@@ -220,7 +245,7 @@ module.exports = {
             if (wheelBuffer && !wheelError) {
                 const attachment = new AttachmentBuilder(wheelBuffer, { 
                     name: `wheel-${giveaway.id}-${Date.now()}.gif`,
-                    description: 'Giveaway wheel animation'
+                    description: `Fortnite Giveaway Wheel - ${giveaway.name}`
                 });
                 response.files = [attachment];
                 
@@ -230,10 +255,10 @@ module.exports = {
             await interaction.editReply(response);
 
             // Log the completion
-            logger.giveaway('COMPLETED', giveaway.id, `Winner: ${winner.userId}`);
+            logger.giveaway('COMPLETED', giveaway.id, `Winner: ${winner.userId} at ${spinTime.toISOString()}`);
 
             // Notify winner
-            await this.notifyWinner(interaction, winner, giveaway);
+            await this.notifyWinner(interaction, winner, giveaway, spinTime);
 
         } catch (error) {
             logger.error('Failed to spin wheel:', error);
@@ -268,7 +293,7 @@ module.exports = {
             }
 
             const failureEmbed = new EmbedBuilder()
-                .setColor('#FF0000')
+                .setColor('#DC3545')
                 .setTitle('❌ Wheel Spin Failed')
                 .setDescription(errorMessage)
                 .addFields({
@@ -278,7 +303,7 @@ module.exports = {
                 })
                 .setTimestamp()
                 .setFooter({ 
-                    text: `Error: ${error.message}` 
+                    text: `Error occurred at ${new Date().toLocaleString()}` 
                 });
 
             if (interaction.deferred) {
@@ -289,30 +314,71 @@ module.exports = {
         }
     },
 
-    // Helper method to notify winner
-    async notifyWinner(interaction, winner, giveaway) {
+    // Format spin timestamp for multiple timezones
+    formatSpinTimestamp(spinTime) {
+        const utc1 = moment(spinTime).tz('Europe/London');
+        const eastern = moment(spinTime).tz('America/New_York');
+        const pacific = moment(spinTime).tz('America/Los_Angeles');
+        
+        return [
+            `🌍 **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `🇺🇸 **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `🇺🇸 **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
+        ].join('\n');
+    },
+
+    // Simplify error messages for users
+    getSimpleErrorMessage(errorMessage) {
+        if (errorMessage.includes('too large') || errorMessage.includes('limit')) {
+            return 'File size too large for Discord';
+        } else if (errorMessage.includes('timeout')) {
+            return 'Generation took too long';
+        } else if (errorMessage.includes('Canvas') || errorMessage.includes('canvas')) {
+            return 'Image generation error';
+        } else if (errorMessage.includes('GIF') || errorMessage.includes('gif')) {
+            return 'Animation encoding error';
+        } else if (errorMessage.includes('Memory') || errorMessage.includes('memory')) {
+            return 'Insufficient memory';
+        }
+        return 'Generation error';
+    },
+
+    // Helper method to notify winner with enhanced message
+    async notifyWinner(interaction, winner, giveaway, spinTime) {
         try {
             const guild = interaction.guild;
             const member = await guild.members.fetch(winner.userId);
             
             if (member) {
                 const notificationEmbed = new EmbedBuilder()
-                    .setColor('#00FF00')
+                    .setColor('#28A745')
                     .setTitle('🎉 Congratulations! You Won!')
                     .setDescription(`You have won the giveaway: **${giveaway.name}**!`)
-                    .addFields({
-                        name: '🎯 Details',
-                        value: [
-                            `**Your Entries:** ${winner.entries}`,
-                            `**V-Bucks Spent:** ${winner.vbucksSpent}`,
-                            `**Giveaway ID:** ${giveaway.id}`,
-                            `**Server:** ${guild.name}`
-                        ].join('\n'),
-                        inline: false
-                    })
-                    .setTimestamp()
+                    .addFields(
+                        {
+                            name: '🎯 Your Winning Details',
+                            value: [
+                                `**Your Entries:** ${winner.entries}`,
+                                `**V-Bucks Spent:** ${winner.vbucksSpent}`,
+                                `**Win Probability:** ${((winner.entries / giveaway.totalEntries) * 100).toFixed(2)}%`,
+                                `**Giveaway ID:** ${giveaway.id}`
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: '🏆 Competition Details',
+                            value: [
+                                `**Total Participants:** ${Object.keys(giveaway.participants).length}`,
+                                `**Total Entries:** ${giveaway.totalEntries}`,
+                                `**Server:** ${guild.name}`,
+                                `**Won At:** ${this.formatSpinTimestamp(spinTime)}`
+                            ].join('\n'),
+                            inline: false
+                        }
+                    )
+                    .setTimestamp(spinTime)
                     .setFooter({
-                        text: 'Check the giveaway channel for full details!',
+                        text: 'Check the giveaway channel for full details! | Use code "sheready" in item shop',
                         iconURL: guild.iconURL()
                     });
 
