@@ -21,23 +21,23 @@ try {
 
 class WheelGenerator {
     constructor() {
-        this.canvasSize = 800;
-        this.centerX = this.canvasSize / 2;
-        this.centerY = this.canvasSize / 2;
-        this.wheelRadius = 350;
-        this.hubRadius = 40;
-        
-        // Animation settings
-        this.fps = 30;
-        this.frameDelay = 1000 / this.fps; // milliseconds per frame
-        
-        // Phase durations (in frames)
-        this.phases = {
-            preSpinFrames: 60,    // 2 seconds at 30fps
-            spinFrames: 120,      // 4 seconds of fast spinning
-            slowFrames: 60,       // 2 seconds of slowing down
-            stopFrames: 30,       // 1 second highlighting winner
-            victoryFrames: 90     // 3 seconds of victory animation
+        // Default settings - optimized for smaller file sizes
+        this.defaultSettings = {
+            canvasSize: 400,        // Reduced from 800
+            wheelRadius: 180,       // Reduced proportionally
+            hubRadius: 25,          // Reduced proportionally
+            fps: 20,               // Reduced from 30
+            quality: 15,           // GIF quality (higher = worse quality = smaller file)
+            frameDelay: 50,        // Milliseconds per frame (50ms = 20fps)
+            
+            // Reduced phase durations
+            phases: {
+                preSpinFrames: 20,      // 1 second
+                spinFrames: 40,         // 2 seconds
+                slowFrames: 30,         // 1.5 seconds
+                stopFrames: 15,         // 0.75 seconds
+                victoryFrames: 35       // 1.75 seconds
+            }
         };
         
         // Color palette for wheel sections
@@ -53,7 +53,6 @@ class WheelGenerator {
 
     initializeFont() {
         try {
-            // Try to register a font file if available
             const fontPath = path.join(__dirname, '../assets/Poppins-Bold.ttf');
             if (fs.existsSync(fontPath)) {
                 registerFont(fontPath, { family: 'Poppins' });
@@ -69,33 +68,84 @@ class WheelGenerator {
         }
     }
 
+    // Get optimized settings based on participant count and options
+    getOptimizedSettings(participantCount, userOptions = {}) {
+        const settings = { ...this.defaultSettings };
+        
+        // Apply user options first
+        Object.assign(settings, userOptions);
+        
+        // Auto-optimize based on participant count
+        if (participantCount > 15) {
+            settings.quality = Math.min(25, settings.quality + 5);
+            settings.frameDelay = Math.max(60, settings.frameDelay + 10);
+            settings.canvasSize = Math.min(350, settings.canvasSize - 25);
+            
+            // Reduce frame counts for many participants
+            settings.phases.preSpinFrames = Math.max(15, settings.phases.preSpinFrames - 5);
+            settings.phases.spinFrames = Math.max(30, settings.phases.spinFrames - 10);
+            settings.phases.slowFrames = Math.max(20, settings.phases.slowFrames - 5);
+            settings.phases.victoryFrames = Math.max(25, settings.phases.victoryFrames - 10);
+        }
+        
+        if (participantCount > 25) {
+            settings.quality = Math.min(30, settings.quality + 5);
+            settings.frameDelay = Math.max(80, settings.frameDelay + 20);
+            settings.canvasSize = Math.min(300, settings.canvasSize - 25);
+            
+            // Further reduce for very large giveaways
+            settings.phases.preSpinFrames = Math.max(10, settings.phases.preSpinFrames - 5);
+            settings.phases.spinFrames = Math.max(20, settings.phases.spinFrames - 10);
+            settings.phases.slowFrames = Math.max(15, settings.phases.slowFrames - 5);
+            settings.phases.victoryFrames = Math.max(15, settings.phases.victoryFrames - 10);
+        }
+        
+        // Recalculate derived values
+        settings.centerX = settings.canvasSize / 2;
+        settings.centerY = settings.canvasSize / 2;
+        settings.wheelRadius = (settings.canvasSize * 0.45) - 10; // Leave margin
+        settings.hubRadius = settings.wheelRadius * 0.14;
+        
+        logger.debug(`Optimized settings for ${participantCount} participants:`, {
+            canvasSize: settings.canvasSize,
+            quality: settings.quality,
+            totalFrames: Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0),
+            estimatedSize: `~${this.estimateFileSize(settings, participantCount)}MB`
+        });
+        
+        return settings;
+    }
+    
+    estimateFileSize(settings, participantCount) {
+        // Rough estimation formula
+        const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
+        const pixelCount = settings.canvasSize * settings.canvasSize;
+        const complexityFactor = Math.min(2, participantCount / 10);
+        const qualityFactor = settings.quality / 10;
+        
+        // Very rough estimate in MB
+        const estimate = (totalFrames * pixelCount * complexityFactor * qualityFactor) / (1024 * 1024 * 100);
+        return Math.max(0.1, estimate).toFixed(1);
+    }
+
     // Generate static wheel showing current participants
     async generateStaticWheel(participants, giveawayName = 'Giveaway') {
         try {
-            const canvas = createCanvas(this.canvasSize, this.canvasSize);
+            const settings = this.getOptimizedSettings(Object.keys(participants).length);
+            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
             const ctx = canvas.getContext('2d');
             
-            // Prepare participant data
             const participantData = this.prepareParticipantData(participants);
             
             if (participantData.length === 0) {
-                return this.generateEmptyWheel(canvas, ctx, giveawayName);
+                return this.generateEmptyWheel(canvas, ctx, giveawayName, settings);
             }
             
-            // Draw background
-            this.drawBackground(ctx);
-            
-            // Draw wheel sections
-            this.drawWheelSections(ctx, participantData);
-            
-            // Draw pointer
-            this.drawPointer(ctx);
-            
-            // Draw center hub
-            this.drawHub(ctx, giveawayName);
-            
-            // Add timestamp
-            this.addTimestamp(ctx);
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings);
+            this.drawPointer(ctx, settings);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
             
             return canvas.toBuffer('image/png');
             
@@ -106,10 +156,12 @@ class WheelGenerator {
     }
 
     // Generate animated spinning wheel with winner selection
-    async generateSpinningWheel(participants, winner, giveawayName = 'Giveaway') {
+    async generateSpinningWheel(participants, winner, giveawayName = 'Giveaway', userOptions = {}) {
         try {
-            logger.wheel(`Generating animated wheel for ${Object.keys(participants).length} participants`);
+            const participantCount = Object.keys(participants).length;
+            logger.wheel(`Generating animated wheel for ${participantCount} participants`);
             
+            const settings = this.getOptimizedSettings(participantCount, userOptions);
             const participantData = this.prepareParticipantData(participants);
             
             if (participantData.length === 0) {
@@ -123,41 +175,40 @@ class WheelGenerator {
             }
             
             // Calculate total frames
-            const totalFrames = Object.values(this.phases).reduce((sum, frames) => sum + frames, 0);
+            const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
+            logger.debug(`Generating ${totalFrames} frames at ${settings.canvasSize}x${settings.canvasSize}`);
             
-            // Initialize GIF encoder
-            const encoder = new GifEncoder(this.canvasSize, this.canvasSize);
+            // Initialize GIF encoder with optimized settings
+            const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
             
-            // Configure encoder
-            if (encoder.setQuality) encoder.setQuality(10);
-            if (encoder.setRepeat) encoder.setRepeat(0); // 0 = loop forever
-            if (encoder.setDelay) encoder.setDelay(this.frameDelay);
+            // Configure encoder for smaller file size
+            if (encoder.setQuality) encoder.setQuality(settings.quality);
+            if (encoder.setRepeat) encoder.setRepeat(0); // Loop forever
+            if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
             
             encoder.start();
             
-            let currentFrame = 0;
-            let currentRotation = 0;
             let targetRotation = this.calculateWinnerRotation(participantData, winnerData);
             
             // Generate frames for each phase
-            await this.generatePreSpinFrames(encoder, participantData, giveawayName);
-            currentFrame += this.phases.preSpinFrames;
-            
-            await this.generateSpinFrames(encoder, participantData, giveawayName, currentFrame);
-            currentFrame += this.phases.spinFrames;
-            
-            await this.generateSlowFrames(encoder, participantData, giveawayName, targetRotation, currentFrame);
-            currentFrame += this.phases.slowFrames;
-            
-            await this.generateStopFrames(encoder, participantData, winnerData, giveawayName, targetRotation);
-            currentFrame += this.phases.stopFrames;
-            
-            await this.generateVictoryFrames(encoder, participantData, winnerData, giveawayName, targetRotation);
+            await this.generatePreSpinFrames(encoder, participantData, giveawayName, settings);
+            await this.generateSpinFrames(encoder, participantData, giveawayName, settings);
+            await this.generateSlowFrames(encoder, participantData, giveawayName, targetRotation, settings);
+            await this.generateStopFrames(encoder, participantData, winnerData, giveawayName, targetRotation, settings);
+            await this.generateVictoryFrames(encoder, participantData, winnerData, giveawayName, targetRotation, settings);
             
             encoder.finish();
             
             const buffer = encoder.out.getData();
-            logger.wheel(`Generated animated wheel: ${buffer.length} bytes`);
+            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+            
+            logger.wheel(`Generated animated wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
+            
+            // Check if file is too large
+            if (buffer.length > 10 * 1024 * 1024) { // 10MB limit
+                logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
+                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
+            }
             
             return buffer;
             
@@ -202,36 +253,32 @@ class WheelGenerator {
         });
     }
 
-    drawBackground(ctx) {
-        // Dark gradient background
+    drawBackground(ctx, settings) {
         const gradient = ctx.createRadialGradient(
-            this.centerX, this.centerY, 0,
-            this.centerX, this.centerY, this.canvasSize / 2
+            settings.centerX, settings.centerY, 0,
+            settings.centerX, settings.centerY, settings.canvasSize / 2
         );
         gradient.addColorStop(0, '#1a1a1a');
         gradient.addColorStop(1, '#2d2d2d');
         
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, this.canvasSize, this.canvasSize);
+        ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
     }
 
-    drawWheelSections(ctx, participantData, rotation = 0, highlightWinner = null) {
+    drawWheelSections(ctx, participantData, settings, rotation = 0, highlightWinner = null) {
         ctx.save();
-        ctx.translate(this.centerX, this.centerY);
+        ctx.translate(settings.centerX, settings.centerY);
         ctx.rotate(rotation);
         
-        // Draw each section
         participantData.forEach(participant => {
-            // Draw section background
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.arc(0, 0, this.wheelRadius, participant.startAngle, participant.endAngle);
+            ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
             ctx.closePath();
             
-            // Apply glow effect for winner
             if (highlightWinner && participant.userId === highlightWinner.userId) {
                 ctx.shadowColor = '#FFD700';
-                ctx.shadowBlur = 20;
+                ctx.shadowBlur = 10; // Reduced blur for performance
             } else {
                 ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
@@ -240,90 +287,82 @@ class WheelGenerator {
             ctx.fillStyle = participant.color;
             ctx.fill();
             
-            // Draw section border
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1; // Reduced line width
             ctx.stroke();
             
-            // Draw text
-            this.drawSectionText(ctx, participant, highlightWinner);
+            this.drawSectionText(ctx, participant, settings, highlightWinner);
         });
         
         ctx.restore();
     }
 
-    drawSectionText(ctx, participant, highlightWinner = null) {
+    drawSectionText(ctx, participant, settings, highlightWinner = null) {
         const midAngle = (participant.startAngle + participant.endAngle) / 2;
-        const textRadius = this.wheelRadius * 0.7;
+        const textRadius = settings.wheelRadius * 0.7;
         
         ctx.save();
         ctx.rotate(midAngle);
         
-        // Set font
         const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
-        const fontSize = isHighlighted ? 18 : Math.max(12, Math.min(16, participant.sectionAngle * 100));
+        const baseFontSize = Math.max(8, settings.canvasSize / 30); // Scale with canvas
+        const fontSize = isHighlighted ? baseFontSize + 2 : Math.max(baseFontSize - 2, Math.min(baseFontSize, participant.sectionAngle * 50));
+        
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Text content
         const displayName = participant.displayName || `User ${participant.userId.slice(0, 4)}`;
         const entriesText = `${participant.entries} entries`;
         
-        // Draw text with outline
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
+        // Simplified text drawing (no stroke for performance)
         ctx.fillStyle = isHighlighted ? '#FFD700' : participant.textColor;
         
-        // Draw name
-        ctx.strokeText(displayName, textRadius, -8);
-        ctx.fillText(displayName, textRadius, -8);
-        
-        // Draw entries (smaller font)
-        ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
-        ctx.strokeText(entriesText, textRadius, 8);
-        ctx.fillText(entriesText, textRadius, 8);
+        // Only draw text if section is large enough
+        if (participant.sectionAngle > 0.2) {
+            ctx.fillText(displayName, textRadius, -4);
+            
+            ctx.font = `${fontSize - 2}px ${this.fontFamily}`;
+            ctx.fillText(entriesText, textRadius, 6);
+        }
         
         ctx.restore();
     }
 
-    drawPointer(ctx, glow = false) {
+    drawPointer(ctx, settings, glow = false) {
         ctx.save();
         
-        // Pointer position (top of wheel)
-        const pointerX = this.centerX;
-        const pointerY = this.centerY - this.wheelRadius - 20;
+        const pointerX = settings.centerX;
+        const pointerY = settings.centerY - settings.wheelRadius - 10; // Adjusted for smaller wheel
+        const pointerSize = settings.canvasSize / 40; // Scale with canvas
         
         if (glow) {
             ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 8;
         }
         
-        // Draw pointer triangle
         ctx.beginPath();
         ctx.moveTo(pointerX, pointerY);
-        ctx.lineTo(pointerX - 15, pointerY - 30);
-        ctx.lineTo(pointerX + 15, pointerY - 30);
+        ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 2);
+        ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 2);
         ctx.closePath();
         
         ctx.fillStyle = '#FFD700';
         ctx.fill();
         ctx.strokeStyle = '#FFA500';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
         ctx.stroke();
         
         ctx.restore();
     }
 
-    drawHub(ctx, giveawayName) {
-        // Draw center hub circle
+    drawHub(ctx, giveawayName, settings) {
         ctx.beginPath();
-        ctx.arc(this.centerX, this.centerY, this.hubRadius, 0, 2 * Math.PI);
+        ctx.arc(settings.centerX, settings.centerY, settings.hubRadius, 0, 2 * Math.PI);
         
-        // Hub gradient
         const hubGradient = ctx.createRadialGradient(
-            this.centerX, this.centerY, 0,
-            this.centerX, this.centerY, this.hubRadius
+            settings.centerX, settings.centerY, 0,
+            settings.centerX, settings.centerY, settings.hubRadius
         );
         hubGradient.addColorStop(0, '#4A4A4A');
         hubGradient.addColorStop(1, '#2A2A2A');
@@ -331,303 +370,220 @@ class WheelGenerator {
         ctx.fillStyle = hubGradient;
         ctx.fill();
         ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Draw giveaway name in center
-        ctx.font = `bold 12px ${this.fontFamily}`;
+        // Scale font with canvas size
+        const fontSize = Math.max(8, settings.canvasSize / 40);
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#FFFFFF';
         
-        const maxWidth = this.hubRadius * 1.5;
+        const maxWidth = settings.hubRadius * 1.5;
         const lines = this.wrapText(giveawayName, maxWidth, ctx);
         
-        const lineHeight = 14;
+        const lineHeight = fontSize + 2;
         const totalHeight = lines.length * lineHeight;
-        const startY = this.centerY - totalHeight / 2 + lineHeight / 2;
+        const startY = settings.centerY - totalHeight / 2 + lineHeight / 2;
         
         lines.forEach((line, index) => {
-            ctx.fillText(line, this.centerX, startY + index * lineHeight);
+            ctx.fillText(line, settings.centerX, startY + index * lineHeight);
         });
     }
 
-    addTimestamp(ctx, zones = ['UTC+1', 'ET', 'PT']) {
+    addTimestamp(ctx, settings, zones = ['UTC+1']) {
+        // Simplified timestamp (only one timezone for smaller file)
         const now = new Date();
-        
-        // UTC+1 (approximate)
         const utc1 = new Date(now.getTime() + (60 * 60 * 1000));
-        // ET (approximate - doesn't account for DST)
-        const et = new Date(now.getTime() - (5 * 60 * 60 * 1000));
-        // PT (approximate - doesn't account for DST)  
-        const pt = new Date(now.getTime() - (8 * 60 * 60 * 1000));
-        
-        const times = {
-            'UTC+1': utc1.toLocaleString('en-US', { hour12: true }),
-            'ET': et.toLocaleString('en-US', { hour12: true }),
-            'PT': pt.toLocaleString('en-US', { hour12: true })
-        };
         
         ctx.save();
-        ctx.font = `10px ${this.fontFamily}`;
+        ctx.font = `${Math.max(8, settings.canvasSize / 50)}px ${this.fontFamily}`;
         ctx.textAlign = 'left';
         ctx.fillStyle = '#CCCCCC';
         
-        let y = 20;
-        zones.forEach(zone => {
-            if (times[zone]) {
-                ctx.fillText(`${zone}: ${times[zone]}`, 10, y);
-                y += 15;
-            }
-        });
+        ctx.fillText(`UTC+1: ${utc1.toLocaleString('en-US', { hour12: true })}`, 5, 15);
         
         ctx.restore();
     }
 
-    generateEmptyWheel(canvas, ctx, giveawayName) {
-        // Draw background
-        this.drawBackground(ctx);
+    generateEmptyWheel(canvas, ctx, giveawayName, settings) {
+        this.drawBackground(ctx, settings);
         
-        // Draw empty wheel
         ctx.beginPath();
-        ctx.arc(this.centerX, this.centerY, this.wheelRadius, 0, 2 * Math.PI);
+        ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
         ctx.fillStyle = '#444444';
         ctx.fill();
         ctx.strokeStyle = '#666666';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Draw "No Participants" text
-        ctx.font = `bold 24px ${this.fontFamily}`;
+        const fontSize = Math.max(16, settings.canvasSize / 25);
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#CCCCCC';
-        ctx.fillText('No Participants', this.centerX, this.centerY - 20);
+        ctx.fillText('No Participants', settings.centerX, settings.centerY - 10);
         
-        ctx.font = `16px ${this.fontFamily}`;
-        ctx.fillText('Add purchases to see wheel', this.centerX, this.centerY + 20);
+        ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
+        ctx.fillText('Add purchases to see wheel', settings.centerX, settings.centerY + 10);
         
-        // Draw hub
-        this.drawHub(ctx, giveawayName);
-        
-        // Add timestamp
-        this.addTimestamp(ctx);
+        this.drawHub(ctx, giveawayName, settings);
+        this.addTimestamp(ctx, settings);
         
         return canvas.toBuffer('image/png');
     }
 
     calculateWinnerRotation(participantData, winner) {
-        // Calculate rotation needed to land on winner
         const winnerMidAngle = (winner.startAngle + winner.endAngle) / 2;
-        
-        // We want the winner section to be at the top (where pointer is)
-        // Top is at -π/2 (or 3π/2)
         const targetAngle = (Math.PI * 3/2) - winnerMidAngle;
         
-        // Add multiple full rotations for dramatic effect
-        const extraRotations = 8 + Math.random() * 4; // 8-12 full rotations
+        // Fewer rotations for smaller file size
+        const extraRotations = 4 + Math.random() * 2; // 4-6 rotations instead of 8-12
         return targetAngle + (extraRotations * 2 * Math.PI);
     }
 
-    async generatePreSpinFrames(encoder, participantData, giveawayName) {
-        const canvas = createCanvas(this.canvasSize, this.canvasSize);
+    async generatePreSpinFrames(encoder, participantData, giveawayName, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
         const ctx = canvas.getContext('2d');
         
-        for (let frame = 0; frame < this.phases.preSpinFrames; frame++) {
-            // Clear canvas
-            this.drawBackground(ctx);
+        for (let frame = 0; frame < settings.phases.preSpinFrames; frame++) {
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings);
+            this.drawPointer(ctx, settings);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
             
-            // Draw static wheel
-            this.drawWheelSections(ctx, participantData);
-            
-            // Draw pointer
-            this.drawPointer(ctx);
-            
-            // Draw hub
-            this.drawHub(ctx, giveawayName);
-            
-            // Add timestamp
-            this.addTimestamp(ctx);
-            
-            // Add frame to GIF
             encoder.addFrame(ctx);
         }
     }
 
-    async generateSpinFrames(encoder, participantData, giveawayName, startFrame) {
-        const canvas = createCanvas(this.canvasSize, this.canvasSize);
+    async generateSpinFrames(encoder, participantData, giveawayName, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
         const ctx = canvas.getContext('2d');
         
-        for (let frame = 0; frame < this.phases.spinFrames; frame++) {
-            // Calculate rotation speed (starts fast, stays fast)
-            const progress = frame / this.phases.spinFrames;
-            const rotationSpeed = 0.8 - (progress * 0.2); // Slight slowdown
+        for (let frame = 0; frame < settings.phases.spinFrames; frame++) {
+            const progress = frame / settings.phases.spinFrames;
+            const rotationSpeed = 0.6 - (progress * 0.1); // Gentler spin
             const rotation = frame * rotationSpeed;
             
-            // Clear canvas
-            this.drawBackground(ctx);
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings, rotation);
+            this.drawPointer(ctx, settings, frame % 4 === 0); // Intermittent glow
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
             
-            // Draw spinning wheel
-            this.drawWheelSections(ctx, participantData, rotation);
+            encoder.addFrame(ctx);
+        }
+    }
+
+    async generateSlowFrames(encoder, participantData, giveawayName, targetRotation, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        const initialRotation = settings.phases.spinFrames * 0.5;
+        
+        for (let frame = 0; frame < settings.phases.slowFrames; frame++) {
+            const progress = frame / settings.phases.slowFrames;
+            const easedProgress = this.easeOutCubic(progress);
             
-            // Draw pointer with slight glow during fast spin
-            this.drawPointer(ctx, true);
+            const rotation = initialRotation + (targetRotation - initialRotation) * easedProgress;
             
-            // Draw hub
-            this.drawHub(ctx, giveawayName);
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings, rotation);
+            this.drawPointer(ctx, settings);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
             
-            // Add timestamp
-            this.addTimestamp(ctx);
+            encoder.addFrame(ctx);
+        }
+    }
+
+    async generateStopFrames(encoder, participantData, winner, giveawayName, finalRotation, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        for (let frame = 0; frame < settings.phases.stopFrames; frame++) {
+            this.drawBackground(ctx, settings);
+            this.drawWheelSections(ctx, participantData, settings, finalRotation, winner);
+            this.drawPointer(ctx, settings, true);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
+            this.drawWinnerText(ctx, winner, frame, settings);
             
-            // Add motion blur effect during fast spinning
+            encoder.addFrame(ctx);
+        }
+    }
+
+    async generateVictoryFrames(encoder, participantData, winner, giveawayName, finalRotation, settings) {
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        for (let frame = 0; frame < settings.phases.victoryFrames; frame++) {
+            this.drawBackground(ctx, settings);
+            
+            const victoryRotation = finalRotation + (frame * 0.01); // Gentle rotation
+            
+            this.drawWheelSections(ctx, participantData, settings, victoryRotation, winner);
+            this.drawPointer(ctx, settings, true);
+            this.drawHub(ctx, giveawayName, settings);
+            this.addTimestamp(ctx, settings);
+            this.drawWinnerText(ctx, winner, frame, settings);
+            
+            // Simplified particles
             if (frame % 3 === 0) {
-                ctx.save();
-                ctx.globalAlpha = 0.1;
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, this.canvasSize, this.canvasSize);
-                ctx.restore();
+                this.drawCelebrationParticles(ctx, frame, settings);
             }
             
             encoder.addFrame(ctx);
         }
     }
 
-    async generateSlowFrames(encoder, participantData, giveawayName, targetRotation, startFrame) {
-        const canvas = createCanvas(this.canvasSize, this.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        const initialRotation = this.phases.spinFrames * 0.6; // From last spin frame
-        
-        for (let frame = 0; frame < this.phases.slowFrames; frame++) {
-            // Easing function for smooth deceleration
-            const progress = frame / this.phases.slowFrames;
-            const easedProgress = this.easeOutCubic(progress);
-            
-            const rotation = initialRotation + (targetRotation - initialRotation) * easedProgress;
-            
-            // Clear canvas
-            this.drawBackground(ctx);
-            
-            // Draw slowing wheel
-            this.drawWheelSections(ctx, participantData, rotation);
-            
-            // Draw pointer
-            this.drawPointer(ctx);
-            
-            // Draw hub
-            this.drawHub(ctx, giveawayName);
-            
-            // Add timestamp
-            this.addTimestamp(ctx);
-            
-            encoder.addFrame(ctx);
-        }
-    }
-
-    async generateStopFrames(encoder, participantData, winner, giveawayName, finalRotation) {
-        const canvas = createCanvas(this.canvasSize, this.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        for (let frame = 0; frame < this.phases.stopFrames; frame++) {
-            // Clear canvas
-            this.drawBackground(ctx);
-            
-            // Draw wheel with winner highlighted
-            this.drawWheelSections(ctx, participantData, finalRotation, winner);
-            
-            // Draw glowing pointer
-            this.drawPointer(ctx, true);
-            
-            // Draw hub
-            this.drawHub(ctx, giveawayName);
-            
-            // Add timestamp
-            this.addTimestamp(ctx);
-            
-            // Add winner text
-            this.drawWinnerText(ctx, winner, frame);
-            
-            encoder.addFrame(ctx);
-        }
-    }
-
-    async generateVictoryFrames(encoder, participantData, winner, giveawayName, finalRotation) {
-        const canvas = createCanvas(this.canvasSize, this.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        for (let frame = 0; frame < this.phases.victoryFrames; frame++) {
-            // Clear canvas
-            this.drawBackground(ctx);
-            
-            // Gentle rotation for victory animation
-            const victoryRotation = finalRotation + (frame * 0.02);
-            
-            // Draw wheel with winner highlighted
-            this.drawWheelSections(ctx, participantData, victoryRotation, winner);
-            
-            // Draw glowing pointer
-            this.drawPointer(ctx, true);
-            
-            // Draw hub
-            this.drawHub(ctx, giveawayName);
-            
-            // Add timestamp
-            this.addTimestamp(ctx);
-            
-            // Animated winner text
-            this.drawWinnerText(ctx, winner, frame);
-            
-            // Add celebration particles
-            this.drawCelebrationParticles(ctx, frame);
-            
-            encoder.addFrame(ctx);
-        }
-    }
-
-    drawWinnerText(ctx, winner, frame) {
+    drawWinnerText(ctx, winner, frame, settings) {
         const displayName = winner.displayName || `User ${winner.userId.slice(0, 8)}`;
         
         ctx.save();
         
-        // Pulsing effect
-        const scale = 1 + Math.sin(frame * 0.2) * 0.1;
-        ctx.translate(this.centerX, this.canvasSize - 80);
+        const scale = 1 + Math.sin(frame * 0.2) * 0.05; // Gentler pulsing
+        ctx.translate(settings.centerX, settings.canvasSize - 40);
         ctx.scale(scale, scale);
         
-        // Background box
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(-150, -25, 300, 50);
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-150, -25, 300, 50);
+        // Simplified winner text box
+        const boxWidth = Math.min(200, settings.canvasSize * 0.8);
+        const boxHeight = 30;
         
-        // Winner text
-        ctx.font = `bold 24px ${this.fontFamily}`;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight);
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight);
+        
+        const fontSize = Math.max(12, settings.canvasSize / 30);
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#FFD700';
-        ctx.fillText('🎉 WINNER! 🎉', 0, -8);
+        ctx.fillText('WINNER!', 0, -6);
         
-        ctx.font = `18px ${this.fontFamily}`;
+        ctx.font = `${fontSize - 2}px ${this.fontFamily}`;
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(displayName, 0, 12);
+        ctx.fillText(displayName, 0, 8);
         
         ctx.restore();
     }
 
-    drawCelebrationParticles(ctx, frame) {
-        const particleCount = 20;
+    drawCelebrationParticles(ctx, frame, settings) {
+        const particleCount = 8; // Reduced particle count
         
         ctx.save();
         
         for (let i = 0; i < particleCount; i++) {
             const angle = (i / particleCount) * 2 * Math.PI;
-            const distance = 50 + (frame * 2);
-            const x = this.centerX + Math.cos(angle + frame * 0.1) * distance;
-            const y = this.centerY + Math.sin(angle + frame * 0.1) * distance;
+            const distance = 30 + (frame * 1);
+            const x = settings.centerX + Math.cos(angle + frame * 0.1) * distance;
+            const y = settings.centerY + Math.sin(angle + frame * 0.1) * distance;
             
-            // Particle size varies with frame
-            const size = 3 + Math.sin(frame * 0.3 + i) * 2;
+            const size = 2 + Math.sin(frame * 0.3 + i) * 1;
             
             ctx.beginPath();
             ctx.arc(x, y, size, 0, 2 * Math.PI);
@@ -644,14 +600,11 @@ class WheelGenerator {
     }
 
     getContrastColor(hexColor) {
-        // Convert hex to RGB
         const r = parseInt(hexColor.slice(1, 3), 16);
         const g = parseInt(hexColor.slice(3, 5), 16);
         const b = parseInt(hexColor.slice(5, 7), 16);
         
-        // Calculate luminance
         const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        
         return luminance > 0.5 ? '#000000' : '#FFFFFF';
     }
 
@@ -676,7 +629,6 @@ class WheelGenerator {
         return lines;
     }
 
-    // Public helper method to select random winner based on entries
     selectRandomWinner(participants) {
         const participantArray = Object.values(participants);
         
@@ -687,11 +639,9 @@ class WheelGenerator {
         const totalEntries = participantArray.reduce((sum, p) => sum + (p.entries || 0), 0);
         
         if (totalEntries === 0) {
-            // If no entries, pick randomly
             return participantArray[Math.floor(Math.random() * participantArray.length)];
         }
         
-        // Weighted random selection
         let random = Math.random() * totalEntries;
         
         for (const participant of participantArray) {
@@ -701,11 +651,9 @@ class WheelGenerator {
             }
         }
         
-        // Fallback (shouldn't happen)
         return participantArray[participantArray.length - 1];
     }
 
-    // Validate wheel generation requirements
     validateWheelData(participants, giveawayName) {
         if (!participants || typeof participants !== 'object') {
             throw new Error('Invalid participants data');
@@ -717,7 +665,7 @@ class WheelGenerator {
         
         const participantCount = Object.keys(participants).length;
         if (participantCount > 50) {
-            logger.warn(`Large number of participants (${participantCount}) may slow down wheel generation`);
+            logger.warn(`Large number of participants (${participantCount}) will generate a heavily optimized wheel to stay under file size limits`);
         }
         
         return true;

@@ -7,18 +7,18 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('addpurchase')
         .setDescription('Add a user purchase to a giveaway')
-        .addStringOption(option =>
-            option.setName('giveaway')
-                .setDescription('Giveaway ID or name')
-                .setRequired(true))
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('User who made the purchase')
-                .setRequired(true))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('item')
                 .setDescription('Add purchase by item name')
+                .addStringOption(option =>
+                    option.setName('giveaway')
+                        .setDescription('Giveaway ID or name')
+                        .setRequired(true))
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('User who made the purchase')
+                        .setRequired(true))
                 .addStringOption(option =>
                     option.setName('name')
                         .setDescription('Item name to search for')
@@ -61,6 +61,14 @@ module.exports = {
             subcommand
                 .setName('vbucks')
                 .setDescription('Add purchase by V-Bucks amount')
+                .addStringOption(option =>
+                    option.setName('giveaway')
+                        .setDescription('Giveaway ID or name')
+                        .setRequired(true))
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('User who made the purchase')
+                        .setRequired(true))
                 .addIntegerOption(option =>
                     option.setName('amount')
                         .setDescription('V-Bucks amount spent')
