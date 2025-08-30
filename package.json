@@ -1,0 +1,35 @@
+{
+  "name": "discord-giveaway-bot",
+  "version": "1.0.0",
+  "description": "A comprehensive Discord.js bot for managing Fortnite giveaways with advanced features",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "giveaway",
+    "fortnite",
+    "vbucks"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "canvas": "^2.11.2",
+    "sharp": "^0.33.2",
+    "node-webpmux": "^3.2.0",
+    "axios": "^1.6.7",
+    "moment": "^2.30.1",
+    "lodash": "^4.17.21",
+    "fuse.js": "^7.0.0",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
