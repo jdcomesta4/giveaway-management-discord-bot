@@ -207,12 +207,40 @@ module.exports = {
     },
 
     async showGlobalStats(interaction, bot) {
-        const stats = await database.getStats();
+    try {
+        // FIXED: Calculate stats directly from cache data instead of relying on potentially empty stats.json
         const giveaways = await database.getAllGiveaways();
-        const purchases = await database.cache.purchases || [];
-
+        const purchases = database.cache.purchases || [];
+        
+        // Calculate real stats from actual data
         const activeGiveaways = giveaways.filter(g => g.active && !g.winner).length;
         const completedGiveaways = giveaways.filter(g => g.winner).length;
+        
+        const totalVbucksTracked = purchases.reduce((sum, p) => sum + (p.vbucksSpent || 0), 0);
+        const totalEntries = purchases.reduce((sum, p) => sum + (p.entriesEarned || 0), 0);
+        const uniqueParticipants = new Set(purchases.map(p => p.userId)).size;
+        const averageVbucksPerPurchase = purchases.length > 0 ? 
+            Math.round(totalVbucksTracked / purchases.length) : 0;
+        
+        // Get most active users
+        const userStats = {};
+        purchases.forEach(purchase => {
+            if (!userStats[purchase.userId]) {
+                userStats[purchase.userId] = {
+                    userId: purchase.userId,
+                    totalPurchases: 0,
+                    totalVbucks: 0,
+                    totalEntries: 0
+                };
+            }
+            userStats[purchase.userId].totalPurchases++;
+            userStats[purchase.userId].totalVbucks += purchase.vbucksSpent;
+            userStats[purchase.userId].totalEntries += purchase.entriesEarned;
+        });
+
+        const mostActiveUsers = Object.values(userStats)
+            .sort((a, b) => b.totalVbucks - a.totalVbucks)
+            .slice(0, 5);
 
         const embed = new EmbedBuilder()
             .setColor('#FFD700')
@@ -222,29 +250,28 @@ module.exports = {
                 {
                     name: '🎁 Giveaway Overview',
                     value: [
-                        `**Total Giveaways:** ${stats.totalGiveaways}`,
+                        `**Total Giveaways:** ${giveaways.length}`,
                         `**Active Giveaways:** ${activeGiveaways}`,
                         `**Completed Giveaways:** ${completedGiveaways}`,
-                        `**Total Participants:** ${stats.uniqueParticipants || 0}`
+                        `**Total Participants:** ${uniqueParticipants}`
                     ].join('\n'),
                     inline: true
                 },
                 {
                     name: '💰 Financial Tracking',
                     value: [
-                        `**Total Purchases:** ${stats.totalPurchases}`,
-                        `**Total V-Bucks Tracked:** ${stats.totalVbucksTracked?.toLocaleString() || 0}`,
-                        `**Total Entries:** ${stats.totalEntries}`,
-                        `**Average V-Bucks/Purchase:** ${stats.averageVbucksPerPurchase?.toLocaleString() || 0}`
+                        `**Total Purchases:** ${purchases.length}`,
+                        `**Total V-Bucks Tracked:** ${totalVbucksTracked.toLocaleString()}`,
+                        `**Total Entries:** ${totalEntries.toLocaleString()}`,
+                        `**Average V-Bucks/Purchase:** ${averageVbucksPerPurchase.toLocaleString()}`
                     ].join('\n'),
                     inline: true
                 }
             );
 
         // Most active users
-        if (stats.mostActiveUsers && stats.mostActiveUsers.length > 0) {
-            const topUsers = stats.mostActiveUsers
-                .slice(0, 5)
+        if (mostActiveUsers.length > 0) {
+            const topUsers = mostActiveUsers
                 .map((user, i) => `${i + 1}. <@${user.userId}> - ${user.totalVbucks.toLocaleString()} V-Bucks (${user.totalPurchases} purchases)`)
                 .join('\n');
 
@@ -257,12 +284,14 @@ module.exports = {
 
         // Bot performance stats
         const cosmetics = database.cache.cosmetics?.items?.length || 0;
+        const databaseSize = giveaways.length + purchases.length + cosmetics;
+        
         embed.addFields({
             name: '🤖 Bot Performance',
             value: [
                 `**Cosmetics Cached:** ${cosmetics.toLocaleString()}`,
-                `**Database Size:** ${this.calculateDatabaseSize()} entries`,
-                `**Last Stats Update:** ${stats.lastUpdated ? new Date(stats.lastUpdated).toLocaleString() : 'Never'}`
+                `**Database Size:** ${databaseSize.toLocaleString()} entries`,
+                `**Last Updated:** ${new Date().toLocaleString()}`
             ].join('\n'),
             inline: false
         });
@@ -275,13 +304,43 @@ module.exports = {
 
         await interaction.editReply({ embeds: [embed] });
 
-        // Update stats after displaying
+        // FIXED: Update stats.json with calculated values
+        const calculatedStats = {
+            totalGiveaways: giveaways.length,
+            activeGiveaways: activeGiveaways,
+            completedGiveaways: completedGiveaways,
+            totalPurchases: purchases.length,
+            totalVbucksTracked: totalVbucksTracked,
+            totalEntries: totalEntries,
+            uniqueParticipants: uniqueParticipants,
+            averageVbucksPerPurchase: averageVbucksPerPurchase,
+            mostActiveUsers: mostActiveUsers,
+            lastUpdated: new Date().toISOString()
+        };
+
         try {
-            await database.updateStats();
+            await database.saveToFile('stats', calculatedStats);
+            logger.debug('Updated stats.json with calculated values');
         } catch (error) {
-            logger.warn('Failed to update stats after display:', error);
+            logger.warn('Failed to update stats.json:', error);
         }
-    },
+
+    } catch (error) {
+        logger.error('Failed to show global stats:', error);
+        
+        const errorEmbed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('Error Loading Statistics')
+            .setDescription('Failed to calculate global statistics.')
+            .setTimestamp();
+
+        if (interaction.deferred) {
+            await interaction.editReply({ embeds: [errorEmbed] });
+        } else {
+            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        }
+    }
+},
 
     calculateDatabaseSize() {
         const giveaways = database.cache.giveaways?.length || 0;
