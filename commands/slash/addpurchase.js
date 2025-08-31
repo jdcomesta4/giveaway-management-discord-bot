@@ -171,10 +171,10 @@ module.exports = {
                 addedBy: interaction.user.id
             };
 
-            // Save purchase
-            const createdPurchase = await database.createPurchase(purchaseData);
+            // FIXED: Create purchase WITHOUT automatic participant update to avoid double entries
+            const createdPurchase = await database.createPurchaseWithoutUpdate(purchaseData);
 
-            // FIXED: Update giveaway participant data with user display name
+            // FIXED: Now manually update participant data with user info (single update)
             await database.updateGiveawayParticipantWithUserInfo(
                 giveaway.id,
                 targetUser.id,

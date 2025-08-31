@@ -117,50 +117,289 @@ class WheelGenerator {
         return Math.max(0.1, estimate).toFixed(1);
     }
 
-    // Generate looping wheel GIF for showcurrentwheelstate (wheelofnames style)
-    async generateLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
-        try {
-            const participantCount = Object.keys(participants).length;
-            logger.wheel(`Generating looping wheel GIF for ${participantCount} participants`);
-            
-            const settings = this.getOptimizedSettings(participantCount, userOptions);
-            const participantData = this.prepareParticipantData(participants);
-            
-            if (participantData.length === 0) {
-                return this.generateEmptyWheelGif(giveawayName, settings);
-            }
-            
-            // Initialize GIF encoder
-            const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
-            
-            if (encoder.setQuality) encoder.setQuality(settings.quality);
-            if (encoder.setRepeat) encoder.setRepeat(0);
-            if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
-            
-            encoder.start();
-            
-            // Generate looping frames
-            await this.generateLoopingFrames(encoder, participantData, giveawayName, settings);
-            
-            encoder.finish();
-            
-            const buffer = encoder.out.getData();
-            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
-            
-            logger.wheel(`Generated looping wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
-            
-            if (buffer.length > 10 * 1024 * 1024) {
-                logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
-                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
-            }
-            
-            return buffer;
-            
-        } catch (error) {
-            logger.error('Failed to generate looping wheel:', error);
-            throw error;
+    drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation = 0, highlightWinner = null) {
+    ctx.save();
+    ctx.translate(settings.centerX, settings.centerY);
+    ctx.rotate(rotation);
+    
+    // FIXED: Anti-aliasing and smooth rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Draw wheel shadow first (consistent, no flashing)
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    
+    participantData.forEach((participant, index) => {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
+        ctx.closePath();
+        
+        // FIXED: Stable coloring - no flashing
+        const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
+        
+        // Use consistent colors (no animation-based color changes)
+        ctx.fillStyle = participant.color;
+        ctx.fill();
+        
+        // FIXED: Consistent borders (prevent flashing)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Draw text with stable styling
+        this.drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner);
+    });
+    
+    ctx.restore();
+}
+
+drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner = null) {
+    const midAngle = (participant.startAngle + participant.endAngle) / 2;
+    const textRadius = settings.wheelRadius * 0.72;
+    
+    ctx.save();
+    ctx.rotate(midAngle);
+    
+    // Reset shadow for text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    
+    const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
+    let fontSize = Math.max(10, settings.canvasSize / 28);
+    
+    // Adjust font size based on section size and text length
+    const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
+    const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
+    
+    // Scale font to fit section
+    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+    let textWidth = ctx.measureText(displayName).width;
+    if (textWidth > maxWidth) {
+        fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
+    }
+    
+    if (isHighlighted) {
+        fontSize = Math.min(fontSize + 3, settings.canvasSize / 20);
+    }
+    
+    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // FIXED: Stable text rendering
+    ctx.fillStyle = '#FFFFFF';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetY = 1;
+    
+    // Only draw text if section is large enough
+    if (participant.sectionAngle > 0.15) {
+        ctx.fillText(displayName, textRadius, -2);
+        
+        // Show entry count for larger sections
+        if (participant.sectionAngle > 0.25) {
+            ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
+            ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
         }
     }
+    
+    ctx.restore();
+}
+
+drawWheelOfNamesPointerImproved(ctx, settings, glow = false) {
+    ctx.save();
+    
+    const pointerX = settings.centerX;
+    const pointerY = settings.centerY - settings.wheelRadius - 8;
+    const pointerSize = Math.max(12, settings.canvasSize / 35);
+    
+    // FIXED: Stable shadow/glow (prevent flashing)
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    
+    // Draw pointer triangle
+    ctx.beginPath();
+    ctx.moveTo(pointerX, pointerY);
+    ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
+    ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
+    ctx.closePath();
+    
+    ctx.fillStyle = '#DC3545';
+    ctx.fill();
+    
+    // Border for pointer
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+drawWheelOfNamesHubImproved(ctx, giveawayName, settings) {
+    ctx.save();
+    
+    // FIXED: Dynamic hub size based on giveaway name length
+    const nameLength = giveawayName.length;
+    let hubRadius = settings.hubRadius;
+    
+    // Increase hub size for longer names
+    if (nameLength > 15) {
+        hubRadius = Math.min(settings.hubRadius * 1.4, settings.wheelRadius * 0.25);
+    } else if (nameLength > 10) {
+        hubRadius = Math.min(settings.hubRadius * 1.2, settings.wheelRadius * 0.22);
+    }
+    
+    // Hub shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    
+    ctx.beginPath();
+    ctx.arc(settings.centerX, settings.centerY, hubRadius, 0, 2 * Math.PI);
+    
+    // Clean white hub
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    
+    ctx.strokeStyle = '#DEE2E6';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Reset shadow for text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    
+    // FIXED: Dynamic font size based on hub size
+    const fontSize = Math.max(8, Math.min(16, hubRadius / 3));
+    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#495057';
+    
+    // FIXED: Better text wrapping for longer names
+    const maxWidth = hubRadius * 1.8;
+    const lines = this.wrapTextImproved(giveawayName, maxWidth, ctx, fontSize);
+    
+    const lineHeight = fontSize + 2;
+    const totalHeight = lines.length * lineHeight;
+    const startY = settings.centerY - totalHeight / 2 + lineHeight / 2;
+    
+    lines.forEach((line, index) => {
+        ctx.fillText(line, settings.centerX, startY + index * lineHeight);
+    });
+    
+    ctx.restore();
+}
+
+wrapTextImproved(text, maxWidth, ctx, fontSize) {
+    const words = text.split(' ');
+    const lines = [];
+    
+    if (words.length === 1) {
+        // Single word - check if it fits, otherwise truncate with ellipsis
+        const textWidth = ctx.measureText(text).width;
+        if (textWidth <= maxWidth) {
+            lines.push(text);
+        } else {
+            // Truncate long single words
+            let truncated = text;
+            while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 1) {
+                truncated = truncated.slice(0, -1);
+            }
+            lines.push(truncated + (truncated.length < text.length ? '...' : ''));
+        }
+        return lines;
+    }
+    
+    let currentLine = words[0];
+    
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + ' ' + word).width;
+        
+        if (width < maxWidth) {
+            currentLine += ' ' + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    
+    lines.push(currentLine);
+    
+    // Limit to maximum 3 lines for hub
+    if (lines.length > 3) {
+        lines.splice(2);
+        lines[1] = lines[1] + '...';
+    }
+    
+    return lines;
+}
+
+    // Generate looping wheel GIF for showcurrentwheelstate (wheelofnames style)
+    async generateLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
+    try {
+        const participantCount = Object.keys(participants).length;
+        logger.wheel(`Generating looping wheel GIF for ${participantCount} participants`);
+        
+        const settings = this.getOptimizedSettings(participantCount, userOptions);
+        const participantData = this.prepareParticipantData(participants);
+        
+        if (participantData.length === 0) {
+            return this.generateEmptyWheelGif(giveawayName, settings);
+        }
+        
+        // FIXED: Full 360° rotation for current wheel state
+        const totalFrames = Math.max(80, Math.min(120, participantCount * 2)); // Adaptive frame count
+        const rotationPerFrame = (2 * Math.PI) / totalFrames; // Complete 360° rotation
+        
+        // Initialize GIF encoder
+        const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
+        
+        if (encoder.setQuality) encoder.setQuality(settings.quality);
+        if (encoder.setRepeat) encoder.setRepeat(0);
+        if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
+        
+        encoder.start();
+        
+        // Generate smooth 360° rotation frames
+        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+        const ctx = canvas.getContext('2d');
+        
+        for (let frame = 0; frame < totalFrames; frame++) {
+            const rotation = frame * rotationPerFrame;
+            
+            this.drawWheelOfNamesBackground(ctx, settings);
+            this.drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation);
+            this.drawWheelOfNamesPointerImproved(ctx, settings);
+            this.drawWheelOfNamesHubImproved(ctx, giveawayName, settings);
+            
+            encoder.addFrame(ctx);
+        }
+        
+        encoder.finish();
+        
+        const buffer = encoder.out.getData();
+        const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+        
+        logger.wheel(`Generated 360° looping wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
+        
+        if (buffer.length > 10 * 1024 * 1024) {
+            logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
+            throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
+        }
+        
+        return buffer;
+        
+    } catch (error) {
+        logger.error('Failed to generate looping wheel:', error);
+        throw error;
+    }
+}
 
     async generateLoopingFrames(encoder, participantData, giveawayName, settings) {
         const canvas = createCanvas(settings.canvasSize, settings.canvasSize);

@@ -204,43 +204,52 @@ class APIHandler {
 
     // FIXED: Creator code endpoint - Updated to use v2/creatorcode
     async getCreatorCode(code) {
-        try {
-            logger.debug(`Fetching creator code info: ${code}`);
-            
-            // Updated endpoint to v2/creatorcode as per documentation
-            const response = await this.fortniteApiClient.get(`/v2/creatorcode?name=${encodeURIComponent(code)}`);
-            
-            if (!response.data || response.data.status !== 200) {
-                logger.debug(`Creator code API returned non-200 status: ${response.data?.status}`);
-                return null;
-            }
-
-            const data = response.data.data;
-            
-            if (!data) {
-                logger.debug(`Creator code not found: ${code}`);
-                return null;
-            }
-
-            return {
-                code: data.code || code,
-                account: {
-                    id: data.account?.id || null,
-                    name: data.account?.name || null
-                },
-                status: data.status || 'ACTIVE',
-                verified: data.verified !== undefined ? data.verified : true
-            };
-        } catch (error) {
-            if (error.response?.status === 404) {
-                logger.debug(`Creator code not found: ${code}`);
-                return null;
-            }
-            
-            logger.error('Failed to fetch creator code:', error);
-            throw new Error(`Creator code API error: ${error.message}`);
+    try {
+        logger.debug(`Fetching creator code info: ${code}`);
+        
+        // FIXED: Updated to use correct v1 endpoint with proper parameter format
+        const response = await this.fortniteApiClient.get(`/v1/creatorcode/${encodeURIComponent(code)}`);
+        
+        if (!response.data || response.data.status !== 200) {
+            logger.debug(`Creator code API returned status: ${response.data?.status || 'unknown'}`);
+            return null;
         }
+
+        const data = response.data.data;
+        
+        if (!data) {
+            logger.debug(`Creator code not found: ${code}`);
+            return null;
+        }
+
+        // FIXED: Better response parsing and validation
+        return {
+            code: data.code || code,
+            account: {
+                id: data.account?.id || null,
+                name: data.account?.name || null
+            },
+            status: data.status || 'ACTIVE',
+            // FIXED: Remove artificial "verified" check since API doesn't provide this
+            // If the code exists and has account info, it's considered valid
+            isValid: !!(data.account?.name && (data.status === 'ACTIVE' || !data.status))
+        };
+    } catch (error) {
+        if (error.response?.status === 404) {
+            logger.debug(`Creator code not found: ${code}`);
+            return null;
+        } else if (error.response?.status === 400) {
+            logger.debug(`Invalid creator code format: ${code}`);
+            throw new Error('Invalid creator code format');
+        } else if (error.response?.status === 429) {
+            logger.warn('Fortnite API rate limit exceeded for creator code check');
+            throw new Error('Rate limit exceeded - please try again later');
+        }
+        
+        logger.error('Failed to fetch creator code:', error);
+        throw new Error(`Creator code API error: ${error.response?.status || error.message}`);
     }
+}
 
     // Hybrid search system - local cosmetics with fuzzy search
     async searchCosmetics(query, filters = {}) {

@@ -500,8 +500,11 @@ class Database {
             giveaway.participants[userId].discriminator = userInfo.discriminator;
         }
 
+        // FIXED: Add entries and V-Bucks (not duplicate)
         giveaway.participants[userId].entries += additionalEntries;
         giveaway.participants[userId].vbucksSpent += vbucksSpent;
+        
+        // FIXED: Update total entries correctly
         giveaway.totalEntries = (giveaway.totalEntries || 0) + additionalEntries;
 
         await this.updateGiveaway(giveawayId, {
@@ -509,7 +512,7 @@ class Database {
             totalEntries: giveaway.totalEntries
         });
 
-        logger.debug(`Updated participant ${userId} in giveaway ${giveawayId} with user info`);
+        logger.debug(`Updated participant ${userId} in giveaway ${giveawayId}: +${additionalEntries} entries, +${vbucksSpent} V-Bucks`);
 
     } catch (error) {
         logger.error('Failed to update giveaway participant with user info:', error);
@@ -554,6 +557,31 @@ class Database {
             throw error;
         }
     }
+
+    // Create purchase without automatic participant update (prevents double entries)
+async createPurchaseWithoutUpdate(purchaseData) {
+    try {
+        purchaseData.purchaseId = this.generateId('PUR');
+        purchaseData.timestamp = new Date().toISOString();
+        
+        this.validateSchema(purchaseData, 'purchase');
+
+        const purchases = [...(this.cache.purchases || [])];
+        purchases.push(purchaseData);
+        
+        await this.saveToFile('purchases', purchases);
+        
+        // NO automatic giveaway participant update - prevents double entries
+        
+        logger.purchase('CREATED', purchaseData.purchaseId, 
+            `${purchaseData.vbucksSpent} V-Bucks, ${purchaseData.entriesEarned} entries (no auto-update)`);
+        
+        return purchaseData;
+    } catch (error) {
+        logger.error('Failed to create purchase without update:', error);
+        throw error;
+    }
+}
 
     generateId(prefix = '') {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
