@@ -133,131 +133,133 @@ class WheelGenerator {
     }
 
     drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation = 0, highlightWinner = null) {
-        ctx.save();
-        ctx.translate(settings.centerX, settings.centerY);
-        ctx.rotate(rotation);
-        
-        // FIXED: Anti-aliasing and smooth rendering
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        
-        // Draw wheel shadow first (consistent, no flashing)
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 4;
-        
-        participantData.forEach((participant, index) => {
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
-            ctx.closePath();
-            
-            // FIXED: Stable coloring - no flashing
-            const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
-            
-            // Use consistent colors (no animation-based color changes)
-            ctx.fillStyle = participant.color;
-            ctx.fill();
-            
-            // FIXED: Consistent borders (prevent flashing)
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Draw text with stable styling
-            this.drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner);
-        });
-        
-        ctx.restore();
-    }
-
-    drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner = null) {
-        const midAngle = (participant.startAngle + participant.endAngle) / 2;
-        const textRadius = settings.wheelRadius * 0.72;
-        
-        ctx.save();
-        ctx.rotate(midAngle);
-        
-        // Reset shadow for text
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        
-        const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
-        let fontSize = Math.max(10, settings.canvasSize / 28);
-        
-        // Adjust font size based on section size and text length
-        const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
-        const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
-        
-        // Scale font to fit section
-        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-        let textWidth = ctx.measureText(displayName).width;
-        if (textWidth > maxWidth) {
-            fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
-        }
-        
-        if (isHighlighted) {
-            fontSize = Math.min(fontSize + 3, settings.canvasSize / 20);
-        }
-        
-        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // FIXED: Stable text rendering
-        ctx.fillStyle = '#FFFFFF';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetY = 1;
-        
-        // Only draw text if section is large enough
-        if (participant.sectionAngle > 0.15) {
-            ctx.fillText(displayName, textRadius, -2);
-            
-            // Show entry count for larger sections
-            if (participant.sectionAngle > 0.25) {
-                ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
-                ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
-            }
-        }
-        
-        ctx.restore();
-    }
-
-    drawWheelOfNamesPointerImproved(ctx, settings, glow = false) {
-        ctx.save();
-        
-        const pointerX = settings.centerX;
-        const pointerY = settings.centerY - settings.wheelRadius - 8;
-        const pointerSize = Math.max(12, settings.canvasSize / 35);
-        
-        // FIXED: Stable shadow/glow (prevent flashing)
-        if (glow) {
-            ctx.shadowColor = '#FF6B35';
-            ctx.shadowBlur = 10;
-        } else {
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            ctx.shadowBlur = 4;
-            ctx.shadowOffsetY = 2;
-        }
-        
-        // Draw pointer triangle
+    ctx.save();
+    ctx.translate(settings.centerX, settings.centerY);
+    ctx.rotate(rotation);
+    
+    // FIXED: Anti-aliasing and smooth rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // FIXED: Set consistent shadow properties ONCE for the entire wheel
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    
+    participantData.forEach((participant, index) => {
         ctx.beginPath();
-        ctx.moveTo(pointerX, pointerY);
-        ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
-        ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
         ctx.closePath();
         
-        ctx.fillStyle = glow ? '#FF6B35' : '#DC3545';
+        // FIXED: Use consistent, stable colors - NO conditional color changes
+        ctx.fillStyle = participant.color;
         ctx.fill();
         
-        // Border for pointer
+        // FIXED: Consistent borders (prevent flashing) - NO shadow changes per segment
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 2;
         ctx.stroke();
-        
-        ctx.restore();
+    });
+    
+    // FIXED: Draw text AFTER all segments to prevent shadow interference
+    // Reset shadow for text rendering
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    
+    participantData.forEach((participant, index) => {
+        this.drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner);
+    });
+    
+    ctx.restore();
+}
+
+    drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner = null) {
+    const midAngle = (participant.startAngle + participant.endAngle) / 2;
+    const textRadius = settings.wheelRadius * 0.72;
+    
+    ctx.save();
+    ctx.rotate(midAngle);
+    
+    // FIXED: Ensure shadow is always reset for text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    
+    const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
+    let fontSize = Math.max(10, settings.canvasSize / 28);
+    
+    // Adjust font size based on section size and text length
+    const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
+    const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
+    
+    // Scale font to fit section
+    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+    let textWidth = ctx.measureText(displayName).width;
+    if (textWidth > maxWidth) {
+        fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
     }
+    
+    // FIXED: Only slight size increase for highlighted text, no color changes
+    if (isHighlighted) {
+        fontSize = Math.min(fontSize + 2, settings.canvasSize / 20);
+    }
+    
+    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // FIXED: Consistent white text with stable shadow - NO color variations
+    ctx.fillStyle = '#FFFFFF';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetY = 1;
+    
+    // Only draw text if section is large enough
+    if (participant.sectionAngle > 0.15) {
+        ctx.fillText(displayName, textRadius, -2);
+        
+        // Show entry count for larger sections
+        if (participant.sectionAngle > 0.25) {
+            ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
+            ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
+        }
+    }
+    
+    ctx.restore();
+}
+
+    drawWheelOfNamesPointerImproved(ctx, settings, glow = false) {
+    ctx.save();
+    
+    const pointerX = settings.centerX;
+    const pointerY = settings.centerY - settings.wheelRadius - 8;
+    const pointerSize = Math.max(12, settings.canvasSize / 35);
+    
+    // FIXED: Stable, consistent pointer styling - no dynamic changes
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    
+    // Draw pointer triangle
+    ctx.beginPath();
+    ctx.moveTo(pointerX, pointerY);
+    ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
+    ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
+    ctx.closePath();
+    
+    // FIXED: Consistent color - no glow variations that cause flashing
+    ctx.fillStyle = '#DC3545';
+    ctx.fill();
+    
+    // FIXED: Consistent border
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    ctx.restore();
+}
 
     drawWheelOfNamesHubImproved(ctx, giveawayName, settings) {
         ctx.save();
