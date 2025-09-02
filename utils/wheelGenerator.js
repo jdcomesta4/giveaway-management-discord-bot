@@ -58,18 +58,26 @@ class WheelGenerator {
 
     initializeFont() {
         try {
-            const fontPath = path.join(__dirname, '../assets/Poppins-Bold.ttf');
+            const fontPath = path.join(__dirname, '../assets/fonts/Poppins-Bold.ttf');
             if (fs.existsSync(fontPath)) {
                 registerFont(fontPath, { family: 'Poppins' });
                 this.fontFamily = 'Poppins';
                 logger.debug('Loaded Poppins font for wheel generator');
             } else {
-                this.fontFamily = 'Arial, sans-serif';
-                logger.debug('Using fallback font for wheel generator');
+                // Try alternative paths
+                const altFontPath = path.join(__dirname, '../assets/Poppins-Bold.ttf');
+                if (fs.existsSync(altFontPath)) {
+                    registerFont(altFontPath, { family: 'Poppins' });
+                    this.fontFamily = 'Poppins';
+                    logger.debug('Loaded Poppins font from alternative path');
+                } else {
+                    this.fontFamily = 'Arial, sans-serif';
+                    logger.debug('Using fallback font for wheel generator');
+                }
             }
         } catch (error) {
             this.fontFamily = 'Arial, sans-serif';
-            logger.warn('Failed to load custom font, using fallback');
+            logger.warn('Failed to load custom font, using fallback:', error.message);
         }
     }
 
@@ -91,11 +99,18 @@ class WheelGenerator {
             settings.phases.celebrateFrames = Math.max(30, settings.phases.celebrateFrames - 10);
         }
         
+        // Additional optimization for very large groups
+        if (participantCount > 30) {
+            settings.canvasSize = Math.min(settings.canvasSize, 450);
+            settings.quality = Math.min(20, settings.quality + 5);
+            settings.frameDelay = Math.max(60, settings.frameDelay + 20);
+        }
+        
         // Recalculate derived values
         settings.centerX = settings.canvasSize / 2;
         settings.centerY = settings.canvasSize / 2;
         settings.wheelRadius = Math.min(settings.wheelRadius, (settings.canvasSize * 0.46) - 10);
-        settings.hubRadius = settings.wheelRadius * 0.15;
+        settings.hubRadius = Math.max(25, Math.min(settings.wheelRadius * 0.15, 50));
         
         logger.debug(`Optimized settings for ${participantCount} participants:`, {
             canvasSize: settings.canvasSize,
@@ -118,303 +133,309 @@ class WheelGenerator {
     }
 
     drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation = 0, highlightWinner = null) {
-    ctx.save();
-    ctx.translate(settings.centerX, settings.centerY);
-    ctx.rotate(rotation);
-    
-    // FIXED: Anti-aliasing and smooth rendering
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    // Draw wheel shadow first (consistent, no flashing)
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 4;
-    
-    participantData.forEach((participant, index) => {
+        ctx.save();
+        ctx.translate(settings.centerX, settings.centerY);
+        ctx.rotate(rotation);
+        
+        // FIXED: Anti-aliasing and smooth rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // Draw wheel shadow first (consistent, no flashing)
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 4;
+        
+        participantData.forEach((participant, index) => {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
+            ctx.closePath();
+            
+            // FIXED: Stable coloring - no flashing
+            const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
+            
+            // Use consistent colors (no animation-based color changes)
+            ctx.fillStyle = participant.color;
+            ctx.fill();
+            
+            // FIXED: Consistent borders (prevent flashing)
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw text with stable styling
+            this.drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner);
+        });
+        
+        ctx.restore();
+    }
+
+    drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner = null) {
+        const midAngle = (participant.startAngle + participant.endAngle) / 2;
+        const textRadius = settings.wheelRadius * 0.72;
+        
+        ctx.save();
+        ctx.rotate(midAngle);
+        
+        // Reset shadow for text
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        
+        const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
+        let fontSize = Math.max(10, settings.canvasSize / 28);
+        
+        // Adjust font size based on section size and text length
+        const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
+        const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
+        
+        // Scale font to fit section
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+        let textWidth = ctx.measureText(displayName).width;
+        if (textWidth > maxWidth) {
+            fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
+        }
+        
+        if (isHighlighted) {
+            fontSize = Math.min(fontSize + 3, settings.canvasSize / 20);
+        }
+        
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // FIXED: Stable text rendering
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetY = 1;
+        
+        // Only draw text if section is large enough
+        if (participant.sectionAngle > 0.15) {
+            ctx.fillText(displayName, textRadius, -2);
+            
+            // Show entry count for larger sections
+            if (participant.sectionAngle > 0.25) {
+                ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
+                ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    drawWheelOfNamesPointerImproved(ctx, settings, glow = false) {
+        ctx.save();
+        
+        const pointerX = settings.centerX;
+        const pointerY = settings.centerY - settings.wheelRadius - 8;
+        const pointerSize = Math.max(12, settings.canvasSize / 35);
+        
+        // FIXED: Stable shadow/glow (prevent flashing)
+        if (glow) {
+            ctx.shadowColor = '#FF6B35';
+            ctx.shadowBlur = 10;
+        } else {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetY = 2;
+        }
+        
+        // Draw pointer triangle
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
+        ctx.moveTo(pointerX, pointerY);
+        ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
+        ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
         ctx.closePath();
         
-        // FIXED: Stable coloring - no flashing
-        const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
-        
-        // Use consistent colors (no animation-based color changes)
-        ctx.fillStyle = participant.color;
+        ctx.fillStyle = glow ? '#FF6B35' : '#DC3545';
         ctx.fill();
         
-        // FIXED: Consistent borders (prevent flashing)
+        // Border for pointer
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Draw text with stable styling
-        this.drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner);
-    });
-    
-    ctx.restore();
-}
+        ctx.restore();
+    }
 
-drawWheelOfNamesTextImproved(ctx, participant, settings, highlightWinner = null) {
-    const midAngle = (participant.startAngle + participant.endAngle) / 2;
-    const textRadius = settings.wheelRadius * 0.72;
-    
-    ctx.save();
-    ctx.rotate(midAngle);
-    
-    // Reset shadow for text
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    
-    const isHighlighted = highlightWinner && participant.userId === highlightWinner.userId;
-    let fontSize = Math.max(10, settings.canvasSize / 28);
-    
-    // Adjust font size based on section size and text length
-    const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
-    const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
-    
-    // Scale font to fit section
-    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-    let textWidth = ctx.measureText(displayName).width;
-    if (textWidth > maxWidth) {
-        fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
-    }
-    
-    if (isHighlighted) {
-        fontSize = Math.min(fontSize + 3, settings.canvasSize / 20);
-    }
-    
-    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // FIXED: Stable text rendering
-    ctx.fillStyle = '#FFFFFF';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 2;
-    ctx.shadowOffsetY = 1;
-    
-    // Only draw text if section is large enough
-    if (participant.sectionAngle > 0.15) {
-        ctx.fillText(displayName, textRadius, -2);
+    drawWheelOfNamesHubImproved(ctx, giveawayName, settings) {
+        ctx.save();
         
-        // Show entry count for larger sections
-        if (participant.sectionAngle > 0.25) {
-            ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
-            ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
+        // FIXED: Dynamic hub size based on giveaway name length
+        const nameLength = giveawayName.length;
+        let hubRadius = settings.hubRadius;
+        
+        // Increase hub size for longer names
+        if (nameLength > 15) {
+            hubRadius = Math.min(settings.hubRadius * 1.4, settings.wheelRadius * 0.25);
+        } else if (nameLength > 10) {
+            hubRadius = Math.min(settings.hubRadius * 1.2, settings.wheelRadius * 0.22);
         }
+        
+        // Hub shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 3;
+        
+        ctx.beginPath();
+        ctx.arc(settings.centerX, settings.centerY, hubRadius, 0, 2 * Math.PI);
+        
+        // Clean white hub
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        
+        ctx.strokeStyle = '#DEE2E6';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Reset shadow for text
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        
+        // FIXED: Dynamic font size based on hub size
+        const fontSize = Math.max(8, Math.min(16, hubRadius / 3));
+        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#495057';
+        
+        // FIXED: Better text wrapping for longer names
+        const maxWidth = hubRadius * 1.8;
+        const lines = this.wrapTextImproved(giveawayName, maxWidth, ctx, fontSize);
+        
+        const lineHeight = fontSize + 2;
+        const totalHeight = lines.length * lineHeight;
+        const startY = settings.centerY - totalHeight / 2 + lineHeight / 2;
+        
+        lines.forEach((line, index) => {
+            ctx.fillText(line, settings.centerX, startY + index * lineHeight);
+        });
+        
+        ctx.restore();
     }
-    
-    ctx.restore();
-}
 
-drawWheelOfNamesPointerImproved(ctx, settings, glow = false) {
-    ctx.save();
-    
-    const pointerX = settings.centerX;
-    const pointerY = settings.centerY - settings.wheelRadius - 8;
-    const pointerSize = Math.max(12, settings.canvasSize / 35);
-    
-    // FIXED: Stable shadow/glow (prevent flashing)
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 2;
-    
-    // Draw pointer triangle
-    ctx.beginPath();
-    ctx.moveTo(pointerX, pointerY);
-    ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
-    ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
-    ctx.closePath();
-    
-    ctx.fillStyle = '#DC3545';
-    ctx.fill();
-    
-    // Border for pointer
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    ctx.restore();
-}
-
-drawWheelOfNamesHubImproved(ctx, giveawayName, settings) {
-    ctx.save();
-    
-    // FIXED: Dynamic hub size based on giveaway name length
-    const nameLength = giveawayName.length;
-    let hubRadius = settings.hubRadius;
-    
-    // Increase hub size for longer names
-    if (nameLength > 15) {
-        hubRadius = Math.min(settings.hubRadius * 1.4, settings.wheelRadius * 0.25);
-    } else if (nameLength > 10) {
-        hubRadius = Math.min(settings.hubRadius * 1.2, settings.wheelRadius * 0.22);
-    }
-    
-    // Hub shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 3;
-    
-    ctx.beginPath();
-    ctx.arc(settings.centerX, settings.centerY, hubRadius, 0, 2 * Math.PI);
-    
-    // Clean white hub
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fill();
-    
-    ctx.strokeStyle = '#DEE2E6';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    // Reset shadow for text
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    
-    // FIXED: Dynamic font size based on hub size
-    const fontSize = Math.max(8, Math.min(16, hubRadius / 3));
-    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#495057';
-    
-    // FIXED: Better text wrapping for longer names
-    const maxWidth = hubRadius * 1.8;
-    const lines = this.wrapTextImproved(giveawayName, maxWidth, ctx, fontSize);
-    
-    const lineHeight = fontSize + 2;
-    const totalHeight = lines.length * lineHeight;
-    const startY = settings.centerY - totalHeight / 2 + lineHeight / 2;
-    
-    lines.forEach((line, index) => {
-        ctx.fillText(line, settings.centerX, startY + index * lineHeight);
-    });
-    
-    ctx.restore();
-}
-
-wrapTextImproved(text, maxWidth, ctx, fontSize) {
-    const words = text.split(' ');
-    const lines = [];
-    
-    if (words.length === 1) {
-        // Single word - check if it fits, otherwise truncate with ellipsis
-        const textWidth = ctx.measureText(text).width;
-        if (textWidth <= maxWidth) {
-            lines.push(text);
-        } else {
-            // Truncate long single words
-            let truncated = text;
-            while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 1) {
-                truncated = truncated.slice(0, -1);
+    wrapTextImproved(text, maxWidth, ctx, fontSize) {
+        const words = text.split(' ');
+        const lines = [];
+        
+        if (words.length === 1) {
+            // Single word - check if it fits, otherwise truncate with ellipsis
+            const textWidth = ctx.measureText(text).width;
+            if (textWidth <= maxWidth) {
+                lines.push(text);
+            } else {
+                // Truncate long single words
+                let truncated = text;
+                while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 1) {
+                    truncated = truncated.slice(0, -1);
+                }
+                lines.push(truncated + (truncated.length < text.length ? '...' : ''));
             }
-            lines.push(truncated + (truncated.length < text.length ? '...' : ''));
+            return lines;
         }
+        
+        let currentLine = words[0];
+        
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + ' ' + word).width;
+            
+            if (width < maxWidth) {
+                currentLine += ' ' + word;
+            } else {
+                lines.push(currentLine);
+                currentLine = word;
+            }
+        }
+        
+        lines.push(currentLine);
+        
+        // Limit to maximum 3 lines for hub
+        if (lines.length > 3) {
+            lines.splice(2);
+            lines[1] = lines[1] + '...';
+        }
+        
         return lines;
     }
-    
-    let currentLine = words[0];
-    
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = ctx.measureText(currentLine + ' ' + word).width;
-        
-        if (width < maxWidth) {
-            currentLine += ' ' + word;
-        } else {
-            lines.push(currentLine);
-            currentLine = word;
-        }
-    }
-    
-    lines.push(currentLine);
-    
-    // Limit to maximum 3 lines for hub
-    if (lines.length > 3) {
-        lines.splice(2);
-        lines[1] = lines[1] + '...';
-    }
-    
-    return lines;
-}
 
     // Generate looping wheel GIF for showcurrentwheelstate (wheelofnames style)
     async generateLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
-    try {
-        const participantCount = Object.keys(participants).length;
-        logger.wheel(`Generating looping wheel GIF for ${participantCount} participants`);
-        
-        const settings = this.getOptimizedSettings(participantCount, userOptions);
-        const participantData = this.prepareParticipantData(participants);
-        
-        if (participantData.length === 0) {
-            return this.generateEmptyWheelGif(giveawayName, settings);
-        }
-        
-        // FIXED: Full 360° rotation for current wheel state
-        const totalFrames = Math.max(80, Math.min(120, participantCount * 2)); // Adaptive frame count
-        const rotationPerFrame = (2 * Math.PI) / totalFrames; // Complete 360° rotation
-        
-        // Initialize GIF encoder
-        const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
-        
-        if (encoder.setQuality) encoder.setQuality(settings.quality);
-        if (encoder.setRepeat) encoder.setRepeat(0);
-        if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
-        
-        encoder.start();
-        
-        // Generate smooth 360° rotation frames
-        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        for (let frame = 0; frame < totalFrames; frame++) {
-            const rotation = frame * rotationPerFrame;
+        try {
+            const participantCount = Object.keys(participants).length;
+            logger.wheel(`Generating looping wheel GIF for ${participantCount} participants`);
             
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation);
-            this.drawWheelOfNamesPointerImproved(ctx, settings);
-            this.drawWheelOfNamesHubImproved(ctx, giveawayName, settings);
+            const settings = this.getOptimizedSettings(participantCount, userOptions);
+            const participantData = this.prepareParticipantData(participants);
             
-            encoder.addFrame(ctx);
-        }
-        
-        encoder.finish();
-        
-        const buffer = encoder.out.getData();
-        const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
-        
-        logger.wheel(`Generated 360° looping wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
-        
-        if (buffer.length > 10 * 1024 * 1024) {
-            logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
-            throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
-        }
-        
-        return buffer;
-        
-    } catch (error) {
-        logger.error('Failed to generate looping wheel:', error);
-        throw error;
-    }
-}
-
-    async generateLoopingFrames(encoder, participantData, giveawayName, settings) {
-        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        for (let frame = 0; frame < settings.loopingFrames; frame++) {
-            const rotation = frame * settings.loopRotationSpeed;
+            if (participantData.length === 0) {
+                return this.generateEmptyWheelGif(giveawayName, settings);
+            }
             
-            // Clean background for each frame
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
-            this.drawWheelOfNamesPointer(ctx, settings);
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+            // FIXED: Full 360° rotation for current wheel state
+            const totalFrames = Math.max(80, Math.min(120, participantCount * 2)); // Adaptive frame count
+            const rotationPerFrame = (2 * Math.PI) / totalFrames; // Complete 360° rotation
             
-            encoder.addFrame(ctx);
+            // Initialize GIF encoder with error handling
+            const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
+            
+            // Set encoder properties with fallback
+            try {
+                if (encoder.setQuality) encoder.setQuality(settings.quality);
+                if (encoder.setRepeat) encoder.setRepeat(0);
+                if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
+                
+                encoder.start();
+            } catch (encoderError) {
+                logger.error('Failed to configure GIF encoder:', encoderError);
+                throw new Error('GIF encoder configuration failed');
+            }
+            
+            // Generate smooth 360° rotation frames
+            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+            const ctx = canvas.getContext('2d');
+            
+            for (let frame = 0; frame < totalFrames; frame++) {
+                try {
+                    const rotation = frame * rotationPerFrame;
+                    
+                    // Clear canvas first
+                    ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                    
+                    this.drawWheelOfNamesBackground(ctx, settings);
+                    this.drawWheelOfNamesWheelImproved(ctx, participantData, settings, rotation);
+                    this.drawWheelOfNamesPointerImproved(ctx, settings);
+                    this.drawWheelOfNamesHubImproved(ctx, giveawayName, settings);
+                    
+                    encoder.addFrame(ctx);
+                } catch (frameError) {
+                    logger.warn(`Error generating frame ${frame}:`, frameError);
+                    // Continue with next frame
+                }
+            }
+            
+            encoder.finish();
+            
+            const buffer = encoder.out.getData();
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Generated buffer is empty');
+            }
+            
+            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+            
+            logger.wheel(`Generated 360° looping wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
+            
+            if (buffer.length > 10 * 1024 * 1024) {
+                logger.warn(`Generated wheel is ${fileSizeMB}MB, exceeding Discord's 10MB limit`);
+                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
+            }
+            
+            return buffer;
+            
+        } catch (error) {
+            logger.error('Failed to generate looping wheel:', error);
+            throw error;
         }
     }
 
@@ -440,14 +461,19 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
             const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
             logger.debug(`Generating ${totalFrames} frames at ${settings.canvasSize}x${settings.canvasSize}`);
             
-            // Initialize GIF encoder
+            // Initialize GIF encoder with error handling
             const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
             
-            if (encoder.setQuality) encoder.setQuality(settings.quality);
-            if (encoder.setRepeat) encoder.setRepeat(0);
-            if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
-            
-            encoder.start();
+            try {
+                if (encoder.setQuality) encoder.setQuality(settings.quality);
+                if (encoder.setRepeat) encoder.setRepeat(0);
+                if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
+                
+                encoder.start();
+            } catch (encoderError) {
+                logger.error('Failed to configure GIF encoder:', encoderError);
+                throw new Error('GIF encoder configuration failed');
+            }
             
             // Calculate winner position for physics-based animation
             const targetRotation = this.calculateWinnerRotation(participantData, winnerData);
@@ -462,6 +488,10 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
             encoder.finish();
             
             const buffer = encoder.out.getData();
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Generated buffer is empty');
+            }
+            
             const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
             
             logger.wheel(`Generated animated wheel: ${buffer.length} bytes (${fileSizeMB}MB)`);
@@ -716,17 +746,24 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
         const ctx = canvas.getContext('2d');
         
         for (let frame = 0; frame < settings.phases.accelerateFrames; frame++) {
-            const progress = frame / settings.phases.accelerateFrames;
-            const easeProgress = this.easeInCubic(progress);
-            const rotationSpeed = 0.05 + (easeProgress * 0.4); // Accelerate to high speed
-            const rotation = (frame * rotationSpeed) % (2 * Math.PI);
-            
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
-            this.drawWheelOfNamesPointer(ctx, settings);
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            
-            encoder.addFrame(ctx);
+            try {
+                const progress = frame / settings.phases.accelerateFrames;
+                const easeProgress = this.easeInCubic(progress);
+                const rotationSpeed = 0.05 + (easeProgress * 0.4); // Accelerate to high speed
+                const rotation = (frame * rotationSpeed) % (2 * Math.PI);
+                
+                // Clear canvas first
+                ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                
+                this.drawWheelOfNamesBackground(ctx, settings);
+                this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
+                this.drawWheelOfNamesPointer(ctx, settings);
+                this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                
+                encoder.addFrame(ctx);
+            } catch (frameError) {
+                logger.warn(`Error in accelerate frame ${frame}:`, frameError);
+            }
         }
     }
 
@@ -738,16 +775,23 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
         let totalRotation = settings.phases.accelerateFrames * 0.225; // Carry over from acceleration
         
         for (let frame = 0; frame < settings.phases.spinFrames; frame++) {
-            const rotationSpeed = baseRotationSpeed + (Math.sin(frame * 0.1) * 0.05); // Slight variation
-            totalRotation += rotationSpeed;
-            const rotation = totalRotation % (2 * Math.PI);
-            
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
-            this.drawWheelOfNamesPointer(ctx, settings);
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            
-            encoder.addFrame(ctx);
+            try {
+                const rotationSpeed = baseRotationSpeed + (Math.sin(frame * 0.1) * 0.05); // Slight variation
+                totalRotation += rotationSpeed;
+                const rotation = totalRotation % (2 * Math.PI);
+                
+                // Clear canvas first
+                ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                
+                this.drawWheelOfNamesBackground(ctx, settings);
+                this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
+                this.drawWheelOfNamesPointer(ctx, settings);
+                this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                
+                encoder.addFrame(ctx);
+            } catch (frameError) {
+                logger.warn(`Error in spin frame ${frame}:`, frameError);
+            }
         }
     }
 
@@ -760,17 +804,24 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
                                (settings.phases.spinFrames * 0.45);
         
         for (let frame = 0; frame < settings.phases.decelerateFrames; frame++) {
-            const progress = frame / settings.phases.decelerateFrames;
-            const easeProgress = this.easeOutCubic(progress);
-            
-            const rotation = initialRotation + (targetRotation - initialRotation) * easeProgress;
-            
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
-            this.drawWheelOfNamesPointer(ctx, settings);
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            
-            encoder.addFrame(ctx);
+            try {
+                const progress = frame / settings.phases.decelerateFrames;
+                const easeProgress = this.easeOutCubic(progress);
+                
+                const rotation = initialRotation + (targetRotation - initialRotation) * easeProgress;
+                
+                // Clear canvas first
+                ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                
+                this.drawWheelOfNamesBackground(ctx, settings);
+                this.drawWheelOfNamesWheel(ctx, participantData, settings, rotation);
+                this.drawWheelOfNamesPointer(ctx, settings);
+                this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                
+                encoder.addFrame(ctx);
+            } catch (frameError) {
+                logger.warn(`Error in decelerate frame ${frame}:`, frameError);
+            }
         }
     }
 
@@ -779,13 +830,20 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
         const ctx = canvas.getContext('2d');
         
         for (let frame = 0; frame < settings.phases.stopFrames; frame++) {
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, finalRotation, winner);
-            this.drawWheelOfNamesPointer(ctx, settings, true); // Glowing pointer
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            this.drawWinnerBanner(ctx, winner, settings);
-            
-            encoder.addFrame(ctx);
+            try {
+                // Clear canvas first
+                ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                
+                this.drawWheelOfNamesBackground(ctx, settings);
+                this.drawWheelOfNamesWheel(ctx, participantData, settings, finalRotation, winner);
+                this.drawWheelOfNamesPointer(ctx, settings, true); // Glowing pointer
+                this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                this.drawWinnerBanner(ctx, winner, settings);
+                
+                encoder.addFrame(ctx);
+            } catch (frameError) {
+                logger.warn(`Error in winner highlight frame ${frame}:`, frameError);
+            }
         }
     }
 
@@ -794,21 +852,28 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
         const ctx = canvas.getContext('2d');
         
         for (let frame = 0; frame < settings.phases.celebrateFrames; frame++) {
-            // Gentle rotation during celebration
-            const celebrationRotation = finalRotation + (frame * 0.005);
-            
-            this.drawWheelOfNamesBackground(ctx, settings);
-            this.drawWheelOfNamesWheel(ctx, participantData, settings, celebrationRotation, winner);
-            this.drawWheelOfNamesPointer(ctx, settings, true);
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            this.drawWinnerBanner(ctx, winner, settings);
-            
-            // Add celebration particles
-            if (frame % 4 === 0) {
-                this.drawCelebrationParticles(ctx, frame, settings);
+            try {
+                // Gentle rotation during celebration
+                const celebrationRotation = finalRotation + (frame * 0.005);
+                
+                // Clear canvas first
+                ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                
+                this.drawWheelOfNamesBackground(ctx, settings);
+                this.drawWheelOfNamesWheel(ctx, participantData, settings, celebrationRotation, winner);
+                this.drawWheelOfNamesPointer(ctx, settings, true);
+                this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                this.drawWinnerBanner(ctx, winner, settings);
+                
+                // Add celebration particles
+                if (frame % 4 === 0) {
+                    this.drawCelebrationParticles(ctx, frame, settings);
+                }
+                
+                encoder.addFrame(ctx);
+            } catch (frameError) {
+                logger.warn(`Error in celebration frame ${frame}:`, frameError);
             }
-            
-            encoder.addFrame(ctx);
         }
     }
 
@@ -927,47 +992,59 @@ wrapTextImproved(text, maxWidth, ctx, fontSize) {
     async generateEmptyWheelGif(giveawayName, settings) {
         const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
         
-        if (encoder.setQuality) encoder.setQuality(settings.quality);
-        if (encoder.setRepeat) encoder.setRepeat(0);
-        if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
-        
-        encoder.start();
-        
-        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
-        const ctx = canvas.getContext('2d');
-        
-        // Generate frames of empty wheel
-        for (let frame = 0; frame < 40; frame++) {
-            this.drawWheelOfNamesBackground(ctx, settings);
+        try {
+            if (encoder.setQuality) encoder.setQuality(settings.quality);
+            if (encoder.setRepeat) encoder.setRepeat(0);
+            if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
             
-            // Empty wheel circle
-            ctx.beginPath();
-            ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
-            ctx.fillStyle = '#F8F9FA';
-            ctx.fill();
-            ctx.strokeStyle = '#DEE2E6';
-            ctx.lineWidth = 3;
-            ctx.stroke();
+            encoder.start();
             
-            // "No Participants" text
-            const fontSize = Math.max(18, settings.canvasSize / 20);
-            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#6C757D';
-            ctx.fillText('No Participants', settings.centerX, settings.centerY - 15);
+            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+            const ctx = canvas.getContext('2d');
             
-            ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
-            ctx.fillStyle = '#ADB5BD';
-            ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
+            // Generate frames of empty wheel
+            for (let frame = 0; frame < 40; frame++) {
+                try {
+                    // Clear canvas first
+                    ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+                    
+                    this.drawWheelOfNamesBackground(ctx, settings);
+                    
+                    // Empty wheel circle
+                    ctx.beginPath();
+                    ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#F8F9FA';
+                    ctx.fill();
+                    ctx.strokeStyle = '#DEE2E6';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    // "No Participants" text
+                    const fontSize = Math.max(18, settings.canvasSize / 20);
+                    ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#6C757D';
+                    ctx.fillText('No Participants', settings.centerX, settings.centerY - 15);
+                    
+                    ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
+                    ctx.fillStyle = '#ADB5BD';
+                    ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
+                    
+                    this.drawWheelOfNamesHub(ctx, giveawayName, settings);
+                    
+                    encoder.addFrame(ctx);
+                } catch (frameError) {
+                    logger.warn(`Error in empty wheel frame ${frame}:`, frameError);
+                }
+            }
             
-            this.drawWheelOfNamesHub(ctx, giveawayName, settings);
-            
-            encoder.addFrame(ctx);
+            encoder.finish();
+            return encoder.out.getData();
+        } catch (error) {
+            logger.error('Failed to generate empty wheel GIF:', error);
+            throw error;
         }
-        
-        encoder.finish();
-        return encoder.out.getData();
     }
 
     selectRandomWinner(participants) {
