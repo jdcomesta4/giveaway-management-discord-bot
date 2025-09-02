@@ -19,15 +19,15 @@ try {
     }
 }
 
-// TRUE FIXED WheelGenerator - Solves color quantization flashing
-class WheelGeneratorFixed {
+// ENHANCED WheelGenerator with all requested fixes
+class WheelGeneratorEnhanced {
     constructor() {
         this.defaultSettings = {
             canvasSize: 500,
-            wheelRadius: 230,
-            hubRadius: 35,
+            wheelRadius: 220,
+            hubRadius: 50,        // INCREASED: Bigger hub for long giveaway names
             fps: 25,
-            quality: 1,       // CRITICAL: Quality 1 prevents auto-quantization flashing
+            quality: 1,
             frameDelay: 40,
             
             phases: {
@@ -36,6 +36,14 @@ class WheelGeneratorFixed {
                 decelerateFrames: 50,
                 stopFrames: 10,
                 celebrateFrames: 40
+            },
+            
+            // ENHANCED: Better text settings
+            text: {
+                minFontSize: 12,      // INCREASED: Bigger minimum font
+                maxFontSize: 20,      // INCREASED: Bigger maximum font
+                boldWeight: 'bold',   // More bold text
+                outlineWidth: 3       // INCREASED: Thicker white outline
             }
         };
         
@@ -62,10 +70,11 @@ class WheelGeneratorFixed {
             
             // UI colors - All web-safe
             pointer: this.toWebSafe('#DC3545'),
-            pointerBorder: '#FFFFFF',  // Already web-safe
-            hubFill: '#FFFFFF',        // Already web-safe
+            pointerBorder: '#FFFFFF',      // Already web-safe
+            hubFill: '#FFFFFF',            // Already web-safe
             hubBorder: this.toWebSafe('#E0E0E0'),
-            textWhite: '#FFFFFF',      // Already web-safe
+            textBlack: '#000000',          // CHANGED: Primary text color is now black
+            textWhite: '#FFFFFF',          // White for outlines
             textDark: this.toWebSafe('#333333')
         };
         
@@ -193,6 +202,22 @@ class WheelGeneratorFixed {
         });
     }
 
+    // ENHANCED: Get slice color at specific angle (for arrow color matching)
+    getSliceColorAtAngle(participants, angle) {
+        // Normalize angle to 0-2π range
+        const normalizedAngle = ((angle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+        
+        // Find which participant slice the angle falls into
+        for (const participant of participants) {
+            if (normalizedAngle >= participant.startAngle && normalizedAngle <= participant.endAngle) {
+                return participant.color;
+            }
+        }
+        
+        // Fallback to default pointer color
+        return this.globalColorPalette.pointer;
+    }
+
     // CRITICAL: Completely reset canvas state between frames
     resetCanvasState(ctx, settings) {
         // Clear everything
@@ -227,7 +252,7 @@ class WheelGeneratorFixed {
         
         // Draw wheel components with web-safe colors only
         this.drawFixedWheel(ctx, participants, settings, rotation, highlightWinner);
-        this.drawFixedPointer(ctx, settings);
+        this.drawFixedPointer(ctx, participants, settings, rotation); // ENHANCED: Pass participants and rotation for color matching
         this.drawFixedHub(ctx, giveawayName, settings);
     }
 
@@ -253,65 +278,83 @@ class WheelGeneratorFixed {
             ctx.stroke();
         });
         
-        // Draw text without shadows (shadows cause quantization issues)
+        // ENHANCED: Draw text with black fill and white outline
         participants.forEach((participant) => {
-            this.drawFixedTextNoShadow(ctx, participant, settings);
+            this.drawEnhancedText(ctx, participant, settings);
         });
         
         ctx.restore();
     }
 
-    // Draw text without shadows to prevent quantization artifacts
-    drawFixedTextNoShadow(ctx, participant, settings) {
+    // ENHANCED: Black text with white outline, bigger and bolder
+    drawEnhancedText(ctx, participant, settings) {
         const midAngle = (participant.startAngle + participant.endAngle) / 2;
         const textRadius = settings.wheelRadius * 0.72;
         
         ctx.save();
         ctx.rotate(midAngle);
         
-        // Fixed font sizing
-        let fontSize = Math.max(10, settings.canvasSize / 28);
+        // ENHANCED: Bigger font sizing with more bold weight
+        let fontSize = Math.max(settings.text.minFontSize, settings.canvasSize / 24); // Increased from /28
         const displayName = participant.displayName;
         const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
         
         // Scale font
-        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+        ctx.font = `${settings.text.boldWeight} ${fontSize}px ${this.fontFamily}`;
         let textWidth = ctx.measureText(displayName).width;
         if (textWidth > maxWidth) {
-            fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
-            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+            fontSize = Math.max(10, fontSize * (maxWidth / textWidth)); // Increased minimum from 8
+            ctx.font = `${settings.text.boldWeight} ${fontSize}px ${this.fontFamily}`;
         }
         
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // NO SHADOWS - use only web-safe white text
-        ctx.fillStyle = this.globalColorPalette.textWhite;
-        
         // Only draw if section is large enough
         if (participant.sectionAngle > 0.15) {
-            // Draw text with black outline for visibility (web-safe colors only)
-            ctx.strokeStyle = '#000000';  // Web-safe black
-            ctx.lineWidth = 2;
-            ctx.strokeText(displayName, textRadius, -2);
-            ctx.fillText(displayName, textRadius, -2);
+            // ENHANCED: Draw black text with white outline (reversed from original)
+            ctx.lineJoin = 'round';  // Smooth outline joins
+            ctx.miterLimit = 2;      // Prevent spikes in outline
             
+            // First: Draw white outline (stroke)
+            ctx.strokeStyle = this.globalColorPalette.textWhite;
+            ctx.lineWidth = settings.text.outlineWidth;
+            ctx.strokeText(displayName, textRadius, -3);
+            
+            // Second: Draw black text (fill)
+            ctx.fillStyle = this.globalColorPalette.textBlack;
+            ctx.fillText(displayName, textRadius, -3);
+            
+            // Entry count text (if section is large enough)
             if (participant.sectionAngle > 0.25) {
-                ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
-                ctx.strokeText(`${participant.entries} entries`, textRadius, fontSize - 2);
-                ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
+                const entryFontSize = Math.max(9, fontSize - 2); // Bigger entry text
+                ctx.font = `${settings.text.boldWeight} ${entryFontSize}px ${this.fontFamily}`;
+                
+                // White outline for entry text
+                ctx.strokeStyle = this.globalColorPalette.textWhite;
+                ctx.lineWidth = settings.text.outlineWidth - 1;
+                ctx.strokeText(`${participant.entries} entries`, textRadius, fontSize + 2);
+                
+                // Black fill for entry text
+                ctx.fillStyle = this.globalColorPalette.textBlack;
+                ctx.fillText(`${participant.entries} entries`, textRadius, fontSize + 2);
             }
         }
         
         ctx.restore();
     }
 
-    drawFixedPointer(ctx, settings) {
+    // ENHANCED: Arrow that matches the color of the slice it's pointing to
+    drawFixedPointer(ctx, participants, settings, currentRotation = 0) {
         ctx.save();
         
         const pointerX = settings.centerX;
         const pointerY = settings.centerY - settings.wheelRadius - 8;
-        const pointerSize = Math.max(12, settings.canvasSize / 35);
+        const pointerSize = Math.max(15, settings.canvasSize / 30); // Slightly bigger pointer
+        
+        // ENHANCED: Calculate which slice the pointer is pointing to
+        const pointerAngle = (3 * Math.PI / 2) - currentRotation; // Top of wheel, adjusted for rotation
+        const sliceColor = this.getSliceColorAtAngle(participants, pointerAngle);
         
         // NO shadows - just solid web-safe colors
         ctx.beginPath();
@@ -320,8 +363,8 @@ class WheelGeneratorFixed {
         ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
         ctx.closePath();
         
-        // Web-safe pointer color
-        ctx.fillStyle = this.globalColorPalette.pointer;
+        // ENHANCED: Use slice color for pointer
+        ctx.fillStyle = sliceColor;
         ctx.fill();
         
         ctx.lineWidth = 2;
@@ -331,10 +374,11 @@ class WheelGeneratorFixed {
         ctx.restore();
     }
 
+    // ENHANCED: Bigger hub with better text handling for long names
     drawFixedHub(ctx, giveawayName, settings) {
         ctx.save();
         
-        const hubRadius = settings.hubRadius;
+        const hubRadius = settings.hubRadius; // Now bigger (50 instead of 35)
         
         // NO shadows - solid web-safe colors only
         ctx.beginPath();
@@ -344,22 +388,28 @@ class WheelGeneratorFixed {
         ctx.fillStyle = this.globalColorPalette.hubFill;
         ctx.fill();
         
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3; // Slightly thicker border
         ctx.strokeStyle = this.globalColorPalette.hubBorder;
         ctx.stroke();
         
-        // Hub text with web-safe color - NO shadows
-        const fontSize = Math.max(10, settings.canvasSize / 30);
+        // ENHANCED: Hub text with better sizing for longer names
+        let fontSize = Math.max(11, settings.canvasSize / 25); // Increased base font size
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = this.globalColorPalette.textDark;
         
-        // Simple text wrapping
-        const maxWidth = hubRadius * 1.6;
+        // Enhanced text wrapping with bigger allowable width
+        const maxWidth = hubRadius * 1.8; // Increased from 1.6 for better text fitting
         const lines = this.wrapText(giveawayName, maxWidth, ctx);
         
-        const lineHeight = fontSize + 2;
+        // Adjust font size if text doesn't fit well
+        if (lines.length > 3) {
+            fontSize = Math.max(9, fontSize * 0.85);
+            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+        }
+        
+        const lineHeight = fontSize + 3; // Increased line spacing
         const totalHeight = lines.length * lineHeight;
         const startY = settings.centerY - totalHeight / 2 + lineHeight / 2;
         
@@ -421,16 +471,16 @@ class WheelGeneratorFixed {
                 throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
             }
             
-            logger.success(`Anti-flashing wheel generated: ${fileSizeMB}MB, quality=1, web-safe colors`);
+            logger.success(`Enhanced wheel generated: ${fileSizeMB}MB, quality=1, web-safe colors, color-matched arrow`);
             return buffer;
             
         } catch (error) {
-            logger.error('Failed to generate anti-flashing wheel:', error);
+            logger.error('Failed to generate enhanced wheel:', error);
             throw error;
         }
     }
 
-    // Generate looping wheel with anti-flashing measures
+    // ENHANCED: Generate slower looping wheel for showcurrentwheelstate
     async generateFixedPaletteLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
         try {
             const participantCount = Object.keys(participants).length;
@@ -441,20 +491,27 @@ class WheelGeneratorFixed {
                 return this.generateEmptyWheelGif(giveawayName, settings);
             }
             
+            // ENHANCED: Create slower looping animation settings
+            const loopingSettings = {
+                ...settings,
+                frameDelay: Math.max(80, settings.frameDelay + 40), // SLOWER: Increased frame delay for easier reading
+                quality: 1 // Keep highest quality
+            };
+            
             // Create encoder with anti-flashing settings
-            const encoder = this.createFixedPaletteEncoder(settings);
+            const encoder = this.createFixedPaletteEncoder(loopingSettings);
             encoder.start();
             
-            // Generate smooth looping animation
-            const totalFrames = Math.min(60, Math.max(40, participantCount * 1.5));
+            // ENHANCED: Generate slower, smoother looping animation
+            const totalFrames = Math.min(80, Math.max(60, participantCount * 2)); // More frames for smoother slow motion
             const rotationPerFrame = (2 * Math.PI) / totalFrames;
             
-            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+            const canvas = createCanvas(loopingSettings.canvasSize, loopingSettings.canvasSize);
             const ctx = canvas.getContext('2d');
             
             for (let frame = 0; frame < totalFrames; frame++) {
                 const rotation = frame * rotationPerFrame;
-                this.renderFixedFrame(ctx, participantData, giveawayName, settings, rotation);
+                this.renderFixedFrame(ctx, participantData, giveawayName, loopingSettings, rotation);
                 encoder.addFrame(ctx);
             }
             
@@ -466,21 +523,25 @@ class WheelGeneratorFixed {
                 throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
             }
             
+            logger.success(`Enhanced slow looping wheel generated: ${fileSizeMB}MB - SLOWER for better readability`);
             return buffer;
             
         } catch (error) {
-            logger.error('Failed to generate anti-flashing looping wheel:', error);
+            logger.error('Failed to generate enhanced slow looping wheel:', error);
             throw error;
         }
     }
 
-    // Optimized settings that prioritize color consistency over file size
+    // ENHANCED: Optimized settings with bigger hub and better text
     getOptimizedSettings(participantCount, userOptions = {}) {
         const settings = { ...this.defaultSettings };
         Object.assign(settings, userOptions);
         
         // CRITICAL: Always use quality 1 for consistency
         settings.quality = 1;
+        
+        // ENHANCED: Bigger hub radius for long giveaway names
+        settings.hubRadius = Math.max(45, Math.min(settings.wheelRadius * 0.22, 65)); // Increased from 0.15
         
         // Adjust frame rate based on participant count
         if (participantCount > 15) {
@@ -495,7 +556,6 @@ class WheelGeneratorFixed {
         settings.centerX = settings.canvasSize / 2;
         settings.centerY = settings.canvasSize / 2;
         settings.wheelRadius = Math.min(settings.wheelRadius, (settings.canvasSize * 0.46) - 10);
-        settings.hubRadius = Math.max(25, Math.min(settings.wheelRadius * 0.15, 50));
         
         return settings;
     }
@@ -569,6 +629,7 @@ class WheelGeneratorFixed {
         return true;
     }
 
+    // ENHANCED: Better text wrapping for longer giveaway names
     wrapText(text, maxWidth, ctx) {
         const words = text.split(' ');
         const lines = [];
@@ -601,9 +662,10 @@ class WheelGeneratorFixed {
         
         lines.push(currentLine);
         
-        if (lines.length > 3) {
-            lines.splice(2);
-            lines[1] = lines[1] + '...';
+        // ENHANCED: Allow more lines for longer giveaway names
+        if (lines.length > 4) { // Increased from 3
+            lines.splice(3); // Keep first 3 lines
+            lines[2] = lines[2] + '...';
         }
         
         return lines;
@@ -619,6 +681,7 @@ class WheelGeneratorFixed {
         for (let frame = 0; frame < 40; frame++) {
             this.resetCanvasState(ctx, settings);
             
+            // Draw empty wheel circle
             ctx.beginPath();
             ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
             ctx.fillStyle = this.globalColorPalette.background;
@@ -627,15 +690,55 @@ class WheelGeneratorFixed {
             ctx.lineWidth = 3;
             ctx.stroke();
             
+            // Draw enhanced hub for empty wheel
+            this.drawFixedHub(ctx, giveawayName, settings);
+            
+            // Draw default pointer (without color matching since no slices)
+            ctx.save();
+            const pointerX = settings.centerX;
+            const pointerY = settings.centerY - settings.wheelRadius - 8;
+            const pointerSize = Math.max(15, settings.canvasSize / 30);
+            
+            ctx.beginPath();
+            ctx.moveTo(pointerX, pointerY);
+            ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
+            ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
+            ctx.closePath();
+            
+            ctx.fillStyle = this.globalColorPalette.pointer;
+            ctx.fill();
+            
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = this.globalColorPalette.pointerBorder;
+            ctx.stroke();
+            ctx.restore();
+            
+            // Add "No Participants" text in the wheel area
             const fontSize = Math.max(18, settings.canvasSize / 20);
             ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = this.globalColorPalette.textDark;
-            ctx.fillText('No Participants', settings.centerX, settings.centerY - 15);
             
+            // Black text with white outline for "No Participants"
+            ctx.lineJoin = 'round';
+            ctx.miterLimit = 2;
+            
+            // White outline
+            ctx.strokeStyle = this.globalColorPalette.textWhite;
+            ctx.lineWidth = 3;
+            ctx.strokeText('No Participants', settings.centerX, settings.centerY - 60);
+            
+            // Black fill
+            ctx.fillStyle = this.globalColorPalette.textBlack;
+            ctx.fillText('No Participants', settings.centerX, settings.centerY - 60);
+            
+            // Smaller instruction text
             ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
-            ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
+            ctx.strokeStyle = this.globalColorPalette.textWhite;
+            ctx.lineWidth = 2;
+            ctx.strokeText('Add purchases to populate wheel', settings.centerX, settings.centerY - 30);
+            ctx.fillStyle = this.globalColorPalette.textBlack;
+            ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY - 30);
             
             encoder.addFrame(ctx);
         }
@@ -645,4 +748,4 @@ class WheelGeneratorFixed {
     }
 }
 
-module.exports = new WheelGeneratorFixed();
+module.exports = new WheelGeneratorEnhanced();
