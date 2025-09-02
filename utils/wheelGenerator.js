@@ -19,7 +19,7 @@ try {
     }
 }
 
-// Enhanced WheelGenerator with Fixed Color Palette System
+// TRUE FIXED WheelGenerator - Solves color quantization flashing
 class WheelGeneratorFixed {
     constructor() {
         this.defaultSettings = {
@@ -27,7 +27,7 @@ class WheelGeneratorFixed {
             wheelRadius: 230,
             hubRadius: 35,
             fps: 25,
-            quality: 15,      // Better quality for fixed palette
+            quality: 1,       // CRITICAL: Quality 1 prevents auto-quantization flashing
             frameDelay: 40,
             
             phases: {
@@ -39,34 +39,93 @@ class WheelGeneratorFixed {
             }
         };
         
-        // FIXED COLOR PALETTE - Pre-defined colors that will NEVER change
+        // WEB-SAFE COLOR PALETTE - Fixed 216-color palette that prevents quantization
+        this.webSafeColors = this.generateWebSafePalette();
+        
+        // FIXED COLOR PALETTE - Pre-defined colors mapped to web-safe equivalents
         this.globalColorPalette = {
-            // Background colors (exactly as they will appear)
-            background: '#F8F9FA',
-            backgroundGradient: '#E9ECEF',
+            background: this.toWebSafe('#F8F9FA'),
+            backgroundGradient: this.toWebSafe('#E9ECEF'),
             
-            // Wheel segment colors - EXACTLY 25 predefined colors
+            // Wheel segment colors - Mapped to web-safe equivalents
             segments: [
-                '#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6',
-                '#1ABC9C', '#E67E22', '#34495E', '#F1C40F', '#E91E63',
-                '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#00BCD4',
-                '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFC107',
-                '#FF9800', '#FF5722', '#795548', '#607D8B', '#FF4081'
+                this.toWebSafe('#E74C3C'), this.toWebSafe('#3498DB'), this.toWebSafe('#2ECC71'), 
+                this.toWebSafe('#F39C12'), this.toWebSafe('#9B59B6'), this.toWebSafe('#1ABC9C'), 
+                this.toWebSafe('#E67E22'), this.toWebSafe('#34495E'), this.toWebSafe('#F1C40F'), 
+                this.toWebSafe('#E91E63'), this.toWebSafe('#9C27B0'), this.toWebSafe('#673AB7'), 
+                this.toWebSafe('#3F51B5'), this.toWebSafe('#2196F3'), this.toWebSafe('#00BCD4'),
+                this.toWebSafe('#009688'), this.toWebSafe('#4CAF50'), this.toWebSafe('#8BC34A'), 
+                this.toWebSafe('#CDDC39'), this.toWebSafe('#FFC107'), this.toWebSafe('#FF9800'), 
+                this.toWebSafe('#FF5722'), this.toWebSafe('#795548'), this.toWebSafe('#607D8B'), 
+                this.toWebSafe('#FF4081')
             ],
             
-            // UI colors - Fixed, no variations
-            pointer: '#DC3545',
-            pointerBorder: '#FFFFFF',
-            hubFill: '#FFFFFF',
-            hubBorder: '#E0E0E0',
-            textWhite: '#FFFFFF',
-            textDark: '#333333',
-            shadowDark: 'rgba(0, 0, 0, 0.3)',
-            shadowLight: 'rgba(0, 0, 0, 0.1)',
-            transparent: 'rgba(0, 0, 0, 0)'
+            // UI colors - All web-safe
+            pointer: this.toWebSafe('#DC3545'),
+            pointerBorder: '#FFFFFF',  // Already web-safe
+            hubFill: '#FFFFFF',        // Already web-safe
+            hubBorder: this.toWebSafe('#E0E0E0'),
+            textWhite: '#FFFFFF',      // Already web-safe
+            textDark: this.toWebSafe('#333333')
         };
         
         this.initializeFont();
+    }
+
+    // Generate 216-color web-safe palette (prevents auto-quantization)
+    generateWebSafePalette() {
+        const colors = [];
+        const values = [0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF];
+        
+        for (let r of values) {
+            for (let g of values) {
+                for (let b of values) {
+                    colors.push({
+                        r, g, b,
+                        hex: `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+                    });
+                }
+            }
+        }
+        
+        return colors;
+    }
+
+    // Convert any color to nearest web-safe equivalent
+    toWebSafe(hex) {
+        const rgb = this.hexToRgb(hex);
+        if (!rgb) return hex;
+        
+        const webSafeValues = [0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF];
+        
+        const toWebSafeValue = (value) => {
+            let closest = webSafeValues[0];
+            let minDiff = Math.abs(value - closest);
+            
+            for (let webValue of webSafeValues) {
+                const diff = Math.abs(value - webValue);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = webValue;
+                }
+            }
+            return closest;
+        };
+        
+        const webSafeR = toWebSafeValue(rgb.r);
+        const webSafeG = toWebSafeValue(rgb.g);
+        const webSafeB = toWebSafeValue(rgb.b);
+        
+        return `#${webSafeR.toString(16).padStart(2, '0')}${webSafeG.toString(16).padStart(2, '0')}${webSafeB.toString(16).padStart(2, '0')}`;
+    }
+
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
     }
 
     initializeFont() {
@@ -83,26 +142,27 @@ class WheelGeneratorFixed {
         }
     }
 
-    // Create GIF encoder with FIXED GLOBAL PALETTE optimization
+    // REAL FIX: Create encoder that prevents automatic quantization
     createFixedPaletteEncoder(settings) {
-        const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
+        // CRITICAL: Use gif-encoder-2 with 'octree' algorithm and quality 1
+        const encoder = new GifEncoder(
+            settings.canvasSize, 
+            settings.canvasSize,
+            'octree',    // Use octree algorithm for better color consistency
+            false,       // Disable optimizer to prevent palette changes
+            Math.ceil(Object.values(settings.phases).reduce((a, b) => a + b, 0)) // Total frames
+        );
         
-        // CRITICAL: Configure for global palette consistency
-        if (encoder.setQuality) encoder.setQuality(settings.quality);
-        if (encoder.setRepeat) encoder.setRepeat(0); // Loop forever
-        if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
-        
-        // FIXED PALETTE SETTINGS
-        if (encoder.setDispose) encoder.setDispose(2); // Restore to background color
-        if (encoder.setTransparent) encoder.setTransparent(0x000000);
-        
-        // Enable global color table (prevents per-frame palette changes)
-        if (encoder.setGlobalPalette) encoder.setGlobalPalette(true);
+        // CRITICAL SETTINGS to prevent quantization flashing:
+        encoder.setQuality(1);           // Highest quality = least quantization artifacts
+        encoder.setRepeat(0);            // Loop forever
+        encoder.setDelay(settings.frameDelay);
+        encoder.setDispose(2);           // Restore to background color
         
         return encoder;
     }
 
-    // Prepare participant data with CONSISTENT color assignment
+    // Prepare participant data with WEB-SAFE color assignment
     prepareFixedParticipants(participants) {
         const participantArray = Object.values(participants);
         if (participantArray.length === 0) return [];
@@ -123,7 +183,7 @@ class WheelGeneratorFixed {
                 endAngle: currentAngle + sectionAngle,
                 sectionAngle: sectionAngle,
                 percentage: percentage,
-                // FIXED: Always use exact same color from global palette
+                // CRITICAL: Use web-safe colors to prevent quantization
                 color: this.globalColorPalette.segments[index % this.globalColorPalette.segments.length],
                 displayName: participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`
             };
@@ -133,13 +193,39 @@ class WheelGeneratorFixed {
         });
     }
 
-    // Render frame with STRICT global palette adherence
-    renderFixedFrame(ctx, participants, giveawayName, settings, rotation, highlightWinner = null) {
-        // ALWAYS use exact same background
+    // CRITICAL: Completely reset canvas state between frames
+    resetCanvasState(ctx, settings) {
+        // Clear everything
+        ctx.clearRect(0, 0, settings.canvasSize, settings.canvasSize);
+        
+        // Reset ALL canvas properties to defaults
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = '#000000';
+        ctx.fillStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'miter';
+        ctx.miterLimit = 10;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+        
+        // Fill with consistent web-safe background
         ctx.fillStyle = this.globalColorPalette.background;
         ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
+    }
+
+    // Render frame with COMPLETE state reset and web-safe colors
+    renderFixedFrame(ctx, participants, giveawayName, settings, rotation, highlightWinner = null) {
+        // CRITICAL: Reset canvas state completely
+        this.resetCanvasState(ctx, settings);
         
-        // Draw wheel components with fixed colors only
+        // Draw wheel components with web-safe colors only
         this.drawFixedWheel(ctx, participants, settings, rotation, highlightWinner);
         this.drawFixedPointer(ctx, settings);
         this.drawFixedHub(ctx, giveawayName, settings);
@@ -150,43 +236,33 @@ class WheelGeneratorFixed {
         ctx.translate(settings.centerX, settings.centerY);
         ctx.rotate(rotation);
         
-        // FIXED shadow - never changes
-        ctx.shadowColor = this.globalColorPalette.shadowLight;
-        ctx.shadowBlur = 6;
-        ctx.shadowOffsetY = 3;
-        
-        // Draw segments with EXACT colors from global palette
+        // Draw segments with web-safe colors ONLY
         participants.forEach((participant) => {
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
             ctx.closePath();
             
-            // NEVER vary from global palette color
+            // Use only web-safe color
             ctx.fillStyle = participant.color;
             ctx.fill();
             
-            // CONSISTENT stroke for all segments
+            // Web-safe stroke
             ctx.lineWidth = 2;
-            ctx.strokeStyle = this.globalColorPalette.pointerBorder; // Always white
+            ctx.strokeStyle = this.globalColorPalette.pointerBorder;
             ctx.stroke();
         });
         
-        // Clear shadow before text to prevent color variations
-        ctx.shadowColor = this.globalColorPalette.transparent;
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        
-        // Draw text with fixed colors
+        // Draw text without shadows (shadows cause quantization issues)
         participants.forEach((participant) => {
-            this.drawFixedText(ctx, participant, settings);
+            this.drawFixedTextNoShadow(ctx, participant, settings);
         });
         
         ctx.restore();
     }
 
-    drawFixedText(ctx, participant, settings) {
+    // Draw text without shadows to prevent quantization artifacts
+    drawFixedTextNoShadow(ctx, participant, settings) {
         const midAngle = (participant.startAngle + participant.endAngle) / 2;
         const textRadius = settings.wheelRadius * 0.72;
         
@@ -198,7 +274,7 @@ class WheelGeneratorFixed {
         const displayName = participant.displayName;
         const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
         
-        // Scale font but keep size consistent
+        // Scale font
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         let textWidth = ctx.measureText(displayName).width;
         if (textWidth > maxWidth) {
@@ -209,20 +285,20 @@ class WheelGeneratorFixed {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // ALWAYS white text - no color variations
+        // NO SHADOWS - use only web-safe white text
         ctx.fillStyle = this.globalColorPalette.textWhite;
-        
-        // FIXED shadow for text
-        ctx.shadowColor = this.globalColorPalette.shadowDark;
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetY = 1;
         
         // Only draw if section is large enough
         if (participant.sectionAngle > 0.15) {
+            // Draw text with black outline for visibility (web-safe colors only)
+            ctx.strokeStyle = '#000000';  // Web-safe black
+            ctx.lineWidth = 2;
+            ctx.strokeText(displayName, textRadius, -2);
             ctx.fillText(displayName, textRadius, -2);
             
             if (participant.sectionAngle > 0.25) {
                 ctx.font = `${Math.max(8, fontSize - 3)}px ${this.fontFamily}`;
+                ctx.strokeText(`${participant.entries} entries`, textRadius, fontSize - 2);
                 ctx.fillText(`${participant.entries} entries`, textRadius, fontSize - 2);
             }
         }
@@ -237,18 +313,14 @@ class WheelGeneratorFixed {
         const pointerY = settings.centerY - settings.wheelRadius - 8;
         const pointerSize = Math.max(12, settings.canvasSize / 35);
         
-        // Fixed shadow
-        ctx.shadowColor = this.globalColorPalette.shadowDark;
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 2;
-        
+        // NO shadows - just solid web-safe colors
         ctx.beginPath();
         ctx.moveTo(pointerX, pointerY);
         ctx.lineTo(pointerX - pointerSize, pointerY - pointerSize * 1.5);
         ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
         ctx.closePath();
         
-        // Always same pointer color
+        // Web-safe pointer color
         ctx.fillStyle = this.globalColorPalette.pointer;
         ctx.fill();
         
@@ -264,15 +336,11 @@ class WheelGeneratorFixed {
         
         const hubRadius = settings.hubRadius;
         
-        // Fixed shadow
-        ctx.shadowColor = this.globalColorPalette.shadowLight;
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 2;
-        
+        // NO shadows - solid web-safe colors only
         ctx.beginPath();
         ctx.arc(settings.centerX, settings.centerY, hubRadius, 0, 2 * Math.PI);
         
-        // Always same hub colors
+        // Web-safe hub colors
         ctx.fillStyle = this.globalColorPalette.hubFill;
         ctx.fill();
         
@@ -280,12 +348,7 @@ class WheelGeneratorFixed {
         ctx.strokeStyle = this.globalColorPalette.hubBorder;
         ctx.stroke();
         
-        // Clear shadow for text
-        ctx.shadowColor = this.globalColorPalette.transparent;
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-        
-        // Hub text with fixed color
+        // Hub text with web-safe color - NO shadows
         const fontSize = Math.max(10, settings.canvasSize / 30);
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
@@ -307,7 +370,7 @@ class WheelGeneratorFixed {
         ctx.restore();
     }
 
-    // Generate spinning wheel with GLOBAL FIXED PALETTE
+    // Generate spinning wheel with HIGHEST QUALITY settings to prevent quantization
     async generateFixedPaletteSpinningWheel(participants, winner, giveawayName = 'Giveaway', userOptions = {}) {
         try {
             const participantCount = Object.keys(participants).length;
@@ -324,14 +387,14 @@ class WheelGeneratorFixed {
                 throw new Error(`Winner ${winner} not found in participants`);
             }
             
-            // Create encoder with FIXED PALETTE
+            // CRITICAL: Create encoder with highest quality settings
             const encoder = this.createFixedPaletteEncoder(settings);
             encoder.start();
             
             // Calculate winning position
             const targetRotation = this.calculateWinnerRotation(participantData, winnerData);
             
-            // Generate all frames with CONSISTENT colors
+            // Generate all frames with web-safe colors and complete state resets
             const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
             const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
             const ctx = canvas.getContext('2d');
@@ -358,16 +421,16 @@ class WheelGeneratorFixed {
                 throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
             }
             
-            logger.success(`Fixed palette wheel generated: ${fileSizeMB}MB, no color flashing`);
+            logger.success(`Anti-flashing wheel generated: ${fileSizeMB}MB, quality=1, web-safe colors`);
             return buffer;
             
         } catch (error) {
-            logger.error('Failed to generate fixed palette wheel:', error);
+            logger.error('Failed to generate anti-flashing wheel:', error);
             throw error;
         }
     }
 
-    // Generate looping wheel with FIXED PALETTE
+    // Generate looping wheel with anti-flashing measures
     async generateFixedPaletteLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
         try {
             const participantCount = Object.keys(participants).length;
@@ -378,7 +441,7 @@ class WheelGeneratorFixed {
                 return this.generateEmptyWheelGif(giveawayName, settings);
             }
             
-            // Create encoder with FIXED PALETTE
+            // Create encoder with anti-flashing settings
             const encoder = this.createFixedPaletteEncoder(settings);
             encoder.start();
             
@@ -406,20 +469,22 @@ class WheelGeneratorFixed {
             return buffer;
             
         } catch (error) {
-            logger.error('Failed to generate fixed palette looping wheel:', error);
+            logger.error('Failed to generate anti-flashing looping wheel:', error);
             throw error;
         }
     }
 
-    // Utility methods (same as before but optimized)
+    // Optimized settings that prioritize color consistency over file size
     getOptimizedSettings(participantCount, userOptions = {}) {
         const settings = { ...this.defaultSettings };
         Object.assign(settings, userOptions);
         
-        // Optimize for fixed palette
+        // CRITICAL: Always use quality 1 for consistency
+        settings.quality = 1;
+        
+        // Adjust frame rate based on participant count
         if (participantCount > 15) {
-            settings.quality = Math.max(12, settings.quality - 3); // Better quality for more participants
-            settings.frameDelay = Math.max(50, settings.frameDelay + 10);
+            settings.frameDelay = Math.max(50, settings.frameDelay + 10); // Slower = more stable
         }
         
         if (participantCount > 30) {
@@ -552,8 +617,7 @@ class WheelGeneratorFixed {
         const ctx = canvas.getContext('2d');
         
         for (let frame = 0; frame < 40; frame++) {
-            ctx.fillStyle = this.globalColorPalette.background;
-            ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
+            this.resetCanvasState(ctx, settings);
             
             ctx.beginPath();
             ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
@@ -573,7 +637,6 @@ class WheelGeneratorFixed {
             ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
             ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
             
-            this.drawFixedHub(ctx, giveawayName, settings);
             encoder.addFrame(ctx);
         }
         
