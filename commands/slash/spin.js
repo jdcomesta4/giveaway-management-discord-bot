@@ -141,7 +141,7 @@ module.exports = {
                     // Set timeout based on participant count
                     const timeoutMs = Math.min(45000, 8000 + (participantCount * 800));
                     
-                    const wheelPromise = wheelGenerator.generateSpinningWheel(
+                    const wheelPromise = wheelGenerator.generateFixedPaletteSpinningWheel(
                         giveaway.participants, 
                         winner.userId, 
                         giveaway.name,

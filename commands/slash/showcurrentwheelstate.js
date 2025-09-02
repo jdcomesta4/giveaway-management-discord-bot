@@ -119,7 +119,7 @@ module.exports = {
                         wheelOptions.loopingFrames = 40;
                     }
                     
-                    const wheelBuffer = await wheelGenerator.generateLoopingWheel(
+                    const wheelBuffer = await wheelGenerator.generateFixedPaletteLoopingWheel(
                         giveaway.participants, 
                         giveaway.name,
                         wheelOptions
