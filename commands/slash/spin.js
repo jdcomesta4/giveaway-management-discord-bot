@@ -104,7 +104,7 @@ module.exports = {
                 )
                 .setTimestamp(spinTime)
                 .setFooter({ 
-                    text: skipAnimation ? 'Selecting winner...' : 'Generating wheel animation...',
+                    text: skipAnimation ? 'Selecting winner...' : 'Generating fixed-palette wheel animation...',
                     iconURL: bot.client.user.displayAvatarURL()
                 });
 
@@ -116,24 +116,24 @@ module.exports = {
             // Generate wheel animation (unless skipped)
             if (!skipAnimation) {
                 try {
-                    logger.wheel(`Starting wheel generation for ${giveaway.id} with winner ${winner.userId}`);
+                    logger.wheel(`Starting FIXED PALETTE wheel generation for ${giveaway.id} with winner ${winner.userId}`);
                     
-                    // Generate with optimized settings for smaller file size
+                    // UPDATED: Use fixed palette wheel generation
                     const wheelOptions = {
-                        quality: 15,        // Balanced quality
-                        frameDelay: 40,     // 25fps for smooth animation
+                        quality: 15,        // Better quality with fixed palette
+                        frameDelay: 40,     // Smooth 25fps animation
                         canvasSize: 500,    // Good quality size
                         participants: participantCount
                     };
                     
-                    // Adjust settings based on participant count to control file size
+                    // Adjust settings based on participant count for performance
                     if (participantCount > 15) {
-                        wheelOptions.quality = 18;
+                        wheelOptions.quality = 12; // Better quality for fixed palette
                         wheelOptions.frameDelay = 50;
                         wheelOptions.canvasSize = 450;
                     }
                     if (participantCount > 25) {
-                        wheelOptions.quality = 22;
+                        wheelOptions.quality = 10; // Still better than before
                         wheelOptions.frameDelay = 60;
                         wheelOptions.canvasSize = 400;
                     }
@@ -141,6 +141,7 @@ module.exports = {
                     // Set timeout based on participant count
                     const timeoutMs = Math.min(45000, 8000 + (participantCount * 800));
                     
+                    // UPDATED: Use the new fixed palette method
                     const wheelPromise = wheelGenerator.generateFixedPaletteSpinningWheel(
                         giveaway.participants, 
                         winner.userId, 
@@ -160,11 +161,11 @@ module.exports = {
                         wheelBuffer = null;
                         wheelError = new Error(`Generated wheel (${(wheelBuffer.length / 1024 / 1024).toFixed(1)}MB) exceeds Discord's 10MB limit`);
                     } else if (wheelBuffer) {
-                        logger.success(`Wheel GIF generated: ${(wheelBuffer.length / 1024 / 1024).toFixed(2)}MB`);
+                        logger.success(`Fixed palette wheel GIF generated: ${(wheelBuffer.length / 1024 / 1024).toFixed(2)}MB - NO COLOR FLASHING`);
                     }
                     
                 } catch (error) {
-                    logger.error('Wheel generation failed:', error);
+                    logger.error('Fixed palette wheel generation failed:', error);
                     wheelError = error;
                     wheelBuffer = null;
                 }
@@ -227,14 +228,14 @@ module.exports = {
             } else if (wheelError) {
                 winnerEmbed.addFields({
                     name: '⚠️ Animation Status',
-                    value: `Wheel animation could not be generated: ${this.getSimpleErrorMessage(wheelError.message)}\n\n*Winner selection was completed successfully.*`,
+                    value: `Fixed-palette wheel animation could not be generated: ${this.getSimpleErrorMessage(wheelError.message)}\n\n*Winner selection was completed successfully.*`,
                     inline: false
                 });
             } else if (wheelBuffer) {
                 const fileSizeMB = (wheelBuffer.length / 1024 / 1024).toFixed(1);
                 winnerEmbed.addFields({
-                    name: '🎡 Wheel Animation',
-                    value: `Generated wheel animation (${fileSizeMB}MB) with **WheelOfNames-style** physics simulation!`,
+                    name: '🎡 Fixed-Palette Wheel Animation',
+                    value: `Generated stable wheel animation (${fileSizeMB}MB) with **NO COLOR FLASHING** using fixed global color palette!`,
                     inline: false
                 });
             }
@@ -245,11 +246,11 @@ module.exports = {
             if (wheelBuffer && !wheelError) {
                 const attachment = new AttachmentBuilder(wheelBuffer, { 
                     name: `wheel-${giveaway.id}-${Date.now()}.gif`,
-                    description: `Fortnite Giveaway Wheel - ${giveaway.name}`
+                    description: `Fixed-Palette Fortnite Giveaway Wheel - ${giveaway.name}`
                 });
                 response.files = [attachment];
                 
-                logger.wheel(`Wheel animation sent for ${giveaway.id} (${(wheelBuffer.length / 1024 / 1024).toFixed(2)}MB)`);
+                logger.wheel(`Fixed-palette wheel animation sent for ${giveaway.id} (${(wheelBuffer.length / 1024 / 1024).toFixed(2)}MB) - NO FLASHING`);
             }
 
             await interaction.editReply(response);
@@ -267,7 +268,7 @@ module.exports = {
             let errorMessage = '❌ Failed to spin wheel. ';
             let troubleshooting = [
                 '• Ensure Canvas dependencies are installed: `npm install canvas`',
-                '• Check if wheel generator module is working',
+                '• Check if fixed-palette wheel generator module is working',
                 '• Try using the `no-animation: True` option for large giveaways',
                 '• Verify sufficient memory and disk space'
             ];
@@ -277,13 +278,13 @@ module.exports = {
                 troubleshooting = [
                     '• Use the `no-animation: True` option to skip the wheel animation',
                     '• Reduce the number of participants if possible',
-                    '• The wheel generator needs optimization for large giveaways',
+                    '• The fixed-palette generator should produce smaller files',
                     '• Winner selection will still work without animation'
                 ];
             } else if (error.message.includes('Canvas')) {
                 errorMessage += 'Canvas/image generation error. Please ensure all dependencies are installed.';
             } else if (error.message.includes('GIF') || error.message.includes('gif')) {
-                errorMessage += 'GIF generation error. Please check the wheel generator configuration.';
+                errorMessage += 'Fixed-palette GIF generation error. Please check the wheel generator configuration.';
             } else if (error.message.includes('timeout')) {
                 errorMessage += 'Wheel generation took too long and was cancelled.';
             } else if (error.message.includes('Memory') || error.message.includes('memory')) {

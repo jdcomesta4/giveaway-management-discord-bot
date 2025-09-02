@@ -93,32 +93,33 @@ module.exports = {
                     });
                 }
 
-                // Generate looping wheel GIF with WheelOfNames style
+                // Generate looping wheel GIF with FIXED PALETTE (no flashing)
                 try {
-                    logger.wheel(`Generating looping wheel state GIF for ${giveaway.id}`);
+                    logger.wheel(`Generating FIXED PALETTE looping wheel state GIF for ${giveaway.id}`);
                     
-                    // Use optimized settings for wheel state display
+                    // UPDATED: Use optimized settings for fixed-palette wheel state display
                     const wheelOptions = {
-                        quality: 12,
-                        frameDelay: 50,
-                        canvasSize: 500,
-                        loopingFrames: 60
+                        quality: 12,        // Better quality with fixed palette
+                        frameDelay: 50,     // Smooth animation
+                        canvasSize: 500,    // Good quality
+                        loopingFrames: 60   // Smooth loop
                     };
                     
-                    // Adjust for participant count
+                    // Adjust for participant count (fixed palette handles larger counts better)
                     if (participantCount > 15) {
-                        wheelOptions.quality = 15;
+                        wheelOptions.quality = 10;  // Still good quality
                         wheelOptions.frameDelay = 60;
                         wheelOptions.canvasSize = 450;
                         wheelOptions.loopingFrames = 50;
                     }
                     if (participantCount > 25) {
-                        wheelOptions.quality = 18;
+                        wheelOptions.quality = 8;   // Acceptable quality
                         wheelOptions.frameDelay = 70;
                         wheelOptions.canvasSize = 400;
                         wheelOptions.loopingFrames = 40;
                     }
                     
+                    // UPDATED: Use the new fixed palette looping method
                     const wheelBuffer = await wheelGenerator.generateFixedPaletteLoopingWheel(
                         giveaway.participants, 
                         giveaway.name,
@@ -128,13 +129,13 @@ module.exports = {
                     const fileSizeMB = (wheelBuffer.length / 1024 / 1024).toFixed(1);
                     const attachment = new AttachmentBuilder(wheelBuffer, { 
                         name: `wheel-state-${giveaway.id}-${Date.now()}.gif`,
-                        description: `Current wheel state for ${giveaway.name}`
+                        description: `Fixed-Palette Current wheel state for ${giveaway.name}`
                     });
 
                     // Add wheel generation info to embed
                     statusEmbed.addFields({
-                        name: '🎡 Live Wheel Animation',
-                        value: `Generated **WheelOfNames-style** looping animation (${fileSizeMB}MB)\nShowing real-time participant distribution`,
+                        name: '🎡 Fixed-Palette Live Wheel Animation',
+                        value: `Generated **stable looping animation** (${fileSizeMB}MB) with **NO COLOR FLASHING**\nShowing real-time participant distribution with consistent colors`,
                         inline: false
                     });
 
@@ -146,7 +147,7 @@ module.exports = {
                     });
 
                     statusEmbed.setFooter({
-                        text: `Giveaway ID: ${giveaway.id} | Use code 'sheready' in item shop!`,
+                        text: `Giveaway ID: ${giveaway.id} | Fixed-palette technology | Use code 'sheready' in item shop!`,
                         iconURL: bot.client.user.displayAvatarURL()
                     });
 
@@ -155,15 +156,15 @@ module.exports = {
                         files: [attachment] 
                     });
 
-                    logger.wheel(`Wheel state displayed for ${giveaway.id} - ${participantCount} participants (${fileSizeMB}MB)`);
+                    logger.wheel(`Fixed-palette wheel state displayed for ${giveaway.id} - ${participantCount} participants (${fileSizeMB}MB) - NO FLASHING`);
 
                 } catch (wheelError) {
-                    logger.error('Failed to generate wheel state GIF:', wheelError);
+                    logger.error('Failed to generate fixed-palette wheel state GIF:', wheelError);
                     
                     // Send embed without wheel image but with error info
                     statusEmbed.addFields({
                         name: '⚠️ Wheel Animation',
-                        value: `Could not generate wheel GIF: ${this.getSimpleErrorMessage(wheelError.message)}\nShowing text summary instead.`,
+                        value: `Could not generate fixed-palette wheel GIF: ${this.getSimpleErrorMessage(wheelError.message)}\nShowing text summary instead.`,
                         inline: false
                     });
 
@@ -205,7 +206,7 @@ module.exports = {
                 await interaction.editReply({ embeds: [statusEmbed] });
             }
 
-            logger.info(`Wheel state displayed for ${giveaway.id} - ${participantCount} participants`);
+            logger.info(`Fixed-palette wheel state displayed for ${giveaway.id} - ${participantCount} participants`);
 
         } catch (error) {
             logger.error('Failed to show wheel state:', error);
@@ -213,7 +214,7 @@ module.exports = {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#DC3545')
                 .setTitle('❌ Failed to Show Wheel State')
-                .setDescription('An error occurred while generating the wheel state.')
+                .setDescription('An error occurred while generating the fixed-palette wheel state.')
                 .addFields({
                     name: '🕐 Error Time',
                     value: this.formatStateTimestamp(new Date()),

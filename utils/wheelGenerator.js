@@ -20,14 +20,14 @@ try {
 }
 
 // Enhanced WheelGenerator with Fixed Color Palette System
-class WheelGeneratorFixedPalette {
+class WheelGeneratorFixed {
     constructor() {
         this.defaultSettings = {
             canvasSize: 500,
             wheelRadius: 230,
             hubRadius: 35,
             fps: 25,
-            quality: 12,
+            quality: 15,      // Better quality for fixed palette
             frameDelay: 40,
             
             phases: {
@@ -36,21 +36,16 @@ class WheelGeneratorFixedPalette {
                 decelerateFrames: 50,
                 stopFrames: 10,
                 celebrateFrames: 40
-            },
-            
-            loopingFrames: 80,
-            loopRotationSpeed: 0.015
+            }
         };
         
-        // FIXED COLOR PALETTE - All colors that will ever appear in the GIF
-        this.fixedPalette = {
-            // Background colors
-            backgrounds: [
-                '#F8F9FA', // Main background
-                '#E9ECEF'  // Gradient background
-            ],
+        // FIXED COLOR PALETTE - Pre-defined colors that will NEVER change
+        this.globalColorPalette = {
+            // Background colors (exactly as they will appear)
+            background: '#F8F9FA',
+            backgroundGradient: '#E9ECEF',
             
-            // Wheel segment colors - exactly 25 colors, no variations
+            // Wheel segment colors - EXACTLY 25 predefined colors
             segments: [
                 '#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6',
                 '#1ABC9C', '#E67E22', '#34495E', '#F1C40F', '#E91E63',
@@ -59,30 +54,16 @@ class WheelGeneratorFixedPalette {
                 '#FF9800', '#FF5722', '#795548', '#607D8B', '#FF4081'
             ],
             
-            // UI element colors - no variations allowed
-            ui: {
-                white: '#FFFFFF',
-                black: '#000000',
-                pointer: '#DC3545',        // Always this red
-                pointerBorder: '#FFFFFF',
-                hubFill: '#FFFFFF',
-                hubBorder: '#E0E0E0',
-                textMain: '#FFFFFF',       // Always white text
-                textHub: '#333333',
-                bannerGreen: '#28A745',
-                bannerTeal: '#20C997',
-                particleGold: '#FFD700',
-                particleOrange: '#FF6B35',
-                particleGreen: '#28A745'
-            },
-            
-            // Shadow colors - pre-defined, no dynamic generation
-            shadows: {
-                light: 'rgba(0, 0, 0, 0.1)',
-                medium: 'rgba(0, 0, 0, 0.2)',
-                dark: 'rgba(0, 0, 0, 0.3)',
-                transparent: 'rgba(0, 0, 0, 0)'
-            }
+            // UI colors - Fixed, no variations
+            pointer: '#DC3545',
+            pointerBorder: '#FFFFFF',
+            hubFill: '#FFFFFF',
+            hubBorder: '#E0E0E0',
+            textWhite: '#FFFFFF',
+            textDark: '#333333',
+            shadowDark: 'rgba(0, 0, 0, 0.3)',
+            shadowLight: 'rgba(0, 0, 0, 0.1)',
+            transparent: 'rgba(0, 0, 0, 0)'
         };
         
         this.initializeFont();
@@ -102,37 +83,32 @@ class WheelGeneratorFixedPalette {
         }
     }
 
-    // Generate palette-optimized GIF encoder
-    createOptimizedEncoder(settings) {
+    // Create GIF encoder with FIXED GLOBAL PALETTE optimization
+    createFixedPaletteEncoder(settings) {
         const encoder = new GifEncoder(settings.canvasSize, settings.canvasSize);
         
-        // Configure for fixed palette
-        if (encoder.setQuality) encoder.setQuality(Math.max(1, Math.min(30, settings.quality)));
-        if (encoder.setRepeat) encoder.setRepeat(0);
+        // CRITICAL: Configure for global palette consistency
+        if (encoder.setQuality) encoder.setQuality(settings.quality);
+        if (encoder.setRepeat) encoder.setRepeat(0); // Loop forever
         if (encoder.setDelay) encoder.setDelay(settings.frameDelay);
         
-        // Critical: Set disposal method to prevent color bleeding
-        if (encoder.setDispose) encoder.setDispose(2); // Restore to background
-        
-        // Set transparent color (helps with palette consistency)
+        // FIXED PALETTE SETTINGS
+        if (encoder.setDispose) encoder.setDispose(2); // Restore to background color
         if (encoder.setTransparent) encoder.setTransparent(0x000000);
+        
+        // Enable global color table (prevents per-frame palette changes)
+        if (encoder.setGlobalPalette) encoder.setGlobalPalette(true);
         
         return encoder;
     }
 
-    // Prepare participant data with FIXED colors only
-    prepareParticipantDataFixed(participants) {
+    // Prepare participant data with CONSISTENT color assignment
+    prepareFixedParticipants(participants) {
         const participantArray = Object.values(participants);
-        
-        if (participantArray.length === 0) {
-            return [];
-        }
+        if (participantArray.length === 0) return [];
         
         const totalEntries = participantArray.reduce((sum, p) => sum + (p.entries || 0), 0);
-        
-        if (totalEntries === 0) {
-            return [];
-        }
+        if (totalEntries === 0) return [];
         
         let currentAngle = 0;
         
@@ -147,8 +123,8 @@ class WheelGeneratorFixedPalette {
                 endAngle: currentAngle + sectionAngle,
                 sectionAngle: sectionAngle,
                 percentage: percentage,
-                // FIXED: Use exact palette color, no variations
-                color: this.fixedPalette.segments[index % this.fixedPalette.segments.length],
+                // FIXED: Always use exact same color from global palette
+                color: this.globalColorPalette.segments[index % this.globalColorPalette.segments.length],
                 displayName: participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`
             };
             
@@ -157,90 +133,88 @@ class WheelGeneratorFixedPalette {
         });
     }
 
-    // Draw frame with STRICT color palette adherence
-    renderFixedPaletteFrame(ctx, participantData, giveawayName, settings, rotation, highlightWinner = null) {
-        // Always clear with EXACT same background
-        ctx.fillStyle = this.fixedPalette.backgrounds[0]; // #F8F9FA
+    // Render frame with STRICT global palette adherence
+    renderFixedFrame(ctx, participants, giveawayName, settings, rotation, highlightWinner = null) {
+        // ALWAYS use exact same background
+        ctx.fillStyle = this.globalColorPalette.background;
         ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
         
-        // Draw all components with fixed colors
-        this.drawFixedPaletteWheel(ctx, participantData, settings, rotation, highlightWinner);
-        this.drawFixedPalettePointer(ctx, settings);
-        this.drawFixedPaletteHub(ctx, giveawayName, settings);
+        // Draw wheel components with fixed colors only
+        this.drawFixedWheel(ctx, participants, settings, rotation, highlightWinner);
+        this.drawFixedPointer(ctx, settings);
+        this.drawFixedHub(ctx, giveawayName, settings);
     }
 
-    drawFixedPaletteWheel(ctx, participantData, settings, rotation = 0, highlightWinner = null) {
+    drawFixedWheel(ctx, participants, settings, rotation = 0, highlightWinner = null) {
         ctx.save();
         ctx.translate(settings.centerX, settings.centerY);
         ctx.rotate(rotation);
         
-        // FIXED: Set shadow properties ONCE and never change them
-        ctx.shadowColor = this.fixedPalette.shadows.light;
+        // FIXED shadow - never changes
+        ctx.shadowColor = this.globalColorPalette.shadowLight;
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 3;
         
-        // Draw all segments with EXACT same styling
-        participantData.forEach((participant) => {
+        // Draw segments with EXACT colors from global palette
+        participants.forEach((participant) => {
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.arc(0, 0, settings.wheelRadius, participant.startAngle, participant.endAngle);
             ctx.closePath();
             
-            // FIXED: Use exact color from palette, NO variations
+            // NEVER vary from global palette color
             ctx.fillStyle = participant.color;
             ctx.fill();
             
-            // FIXED: Consistent stroke for all segments
+            // CONSISTENT stroke for all segments
             ctx.lineWidth = 2;
-            ctx.strokeStyle = this.fixedPalette.ui.white;
+            ctx.strokeStyle = this.globalColorPalette.pointerBorder; // Always white
             ctx.stroke();
         });
         
-        // COMPLETELY reset shadow before text
-        ctx.shadowColor = this.fixedPalette.shadows.transparent;
+        // Clear shadow before text to prevent color variations
+        ctx.shadowColor = this.globalColorPalette.transparent;
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
         
-        // Draw text with FIXED colors only
-        participantData.forEach((participant) => {
-            this.drawFixedPaletteText(ctx, participant, settings, highlightWinner);
+        // Draw text with fixed colors
+        participants.forEach((participant) => {
+            this.drawFixedText(ctx, participant, settings);
         });
         
         ctx.restore();
     }
 
-    drawFixedPaletteText(ctx, participant, settings, highlightWinner = null) {
+    drawFixedText(ctx, participant, settings) {
         const midAngle = (participant.startAngle + participant.endAngle) / 2;
         const textRadius = settings.wheelRadius * 0.72;
         
         ctx.save();
         ctx.rotate(midAngle);
         
-        // Calculate font size
+        // Fixed font sizing
         let fontSize = Math.max(10, settings.canvasSize / 28);
-        const displayName = participant.displayName || participant.username || `User ${participant.userId.slice(-4)}`;
+        const displayName = participant.displayName;
         const maxWidth = Math.max(60, participant.sectionAngle * settings.wheelRadius * 0.8);
         
-        // Scale font to fit
+        // Scale font but keep size consistent
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         let textWidth = ctx.measureText(displayName).width;
         if (textWidth > maxWidth) {
             fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
+            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         }
         
-        // FIXED: NO dynamic font sizing for highlighting - prevents color palette changes
-        ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // FIXED: ALWAYS use white text - NO color variations whatsoever
-        ctx.fillStyle = this.fixedPalette.ui.textMain; // Always #FFFFFF
+        // ALWAYS white text - no color variations
+        ctx.fillStyle = this.globalColorPalette.textWhite;
         
-        // FIXED: Minimal, consistent shadow for ALL text
-        ctx.shadowColor = this.fixedPalette.shadows.medium;
-        ctx.shadowBlur = 1;
-        ctx.shadowOffsetX = 0;
+        // FIXED shadow for text
+        ctx.shadowColor = this.globalColorPalette.shadowDark;
+        ctx.shadowBlur = 2;
         ctx.shadowOffsetY = 1;
         
         // Only draw if section is large enough
@@ -256,16 +230,16 @@ class WheelGeneratorFixedPalette {
         ctx.restore();
     }
 
-    drawFixedPalettePointer(ctx, settings) {
+    drawFixedPointer(ctx, settings) {
         ctx.save();
         
         const pointerX = settings.centerX;
         const pointerY = settings.centerY - settings.wheelRadius - 8;
         const pointerSize = Math.max(12, settings.canvasSize / 35);
         
-        // FIXED: Always same shadow - no glow variations
-        ctx.shadowColor = this.fixedPalette.shadows.medium;
-        ctx.shadowBlur = 3;
+        // Fixed shadow
+        ctx.shadowColor = this.globalColorPalette.shadowDark;
+        ctx.shadowBlur = 4;
         ctx.shadowOffsetY = 2;
         
         ctx.beginPath();
@@ -274,53 +248,53 @@ class WheelGeneratorFixedPalette {
         ctx.lineTo(pointerX + pointerSize, pointerY - pointerSize * 1.5);
         ctx.closePath();
         
-        // FIXED: Always exact same color
-        ctx.fillStyle = this.fixedPalette.ui.pointer; // #DC3545
+        // Always same pointer color
+        ctx.fillStyle = this.globalColorPalette.pointer;
         ctx.fill();
         
         ctx.lineWidth = 2;
-        ctx.strokeStyle = this.fixedPalette.ui.pointerBorder;
+        ctx.strokeStyle = this.globalColorPalette.pointerBorder;
         ctx.stroke();
         
         ctx.restore();
     }
 
-    drawFixedPaletteHub(ctx, giveawayName, settings) {
+    drawFixedHub(ctx, giveawayName, settings) {
         ctx.save();
         
         const hubRadius = settings.hubRadius;
         
-        // FIXED: Consistent shadow
-        ctx.shadowColor = this.fixedPalette.shadows.light;
+        // Fixed shadow
+        ctx.shadowColor = this.globalColorPalette.shadowLight;
         ctx.shadowBlur = 4;
         ctx.shadowOffsetY = 2;
         
         ctx.beginPath();
         ctx.arc(settings.centerX, settings.centerY, hubRadius, 0, 2 * Math.PI);
         
-        // FIXED: Always exact same hub colors
-        ctx.fillStyle = this.fixedPalette.ui.hubFill;
+        // Always same hub colors
+        ctx.fillStyle = this.globalColorPalette.hubFill;
         ctx.fill();
         
         ctx.lineWidth = 2;
-        ctx.strokeStyle = this.fixedPalette.ui.hubBorder;
+        ctx.strokeStyle = this.globalColorPalette.hubBorder;
         ctx.stroke();
         
-        // Reset shadow for text
-        ctx.shadowColor = this.fixedPalette.shadows.transparent;
+        // Clear shadow for text
+        ctx.shadowColor = this.globalColorPalette.transparent;
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
         
-        // Hub text with FIXED colors
+        // Hub text with fixed color
         const fontSize = Math.max(10, settings.canvasSize / 30);
         ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = this.fixedPalette.ui.textHub; // #333333
+        ctx.fillStyle = this.globalColorPalette.textDark;
         
         // Simple text wrapping
         const maxWidth = hubRadius * 1.6;
-        const lines = this.wrapTextImproved(giveawayName, maxWidth, ctx, fontSize);
+        const lines = this.wrapText(giveawayName, maxWidth, ctx);
         
         const lineHeight = fontSize + 2;
         const totalHeight = lines.length * lineHeight;
@@ -333,58 +307,12 @@ class WheelGeneratorFixedPalette {
         ctx.restore();
     }
 
-    // Generate looping wheel with fixed palette
-    async generateFixedPaletteLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
-        try {
-            const participantCount = Object.keys(participants).length;
-            const settings = this.getOptimizedSettings(participantCount, userOptions);
-            const participantData = this.prepareParticipantDataFixed(participants);
-            
-            if (participantData.length === 0) {
-                return this.generateEmptyWheelGif(giveawayName, settings);
-            }
-            
-            // FIXED: Fewer frames for stable palette
-            const totalFrames = Math.min(60, Math.max(40, participantCount * 1.5));
-            const rotationPerFrame = (2 * Math.PI) / totalFrames;
-            
-            // Create encoder with fixed palette optimization
-            const encoder = this.createOptimizedEncoder(settings);
-            encoder.start();
-            
-            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
-            const ctx = canvas.getContext('2d');
-            
-            // Generate all frames with EXACT same color usage
-            for (let frame = 0; frame < totalFrames; frame++) {
-                const rotation = frame * rotationPerFrame;
-                this.renderFixedPaletteFrame(ctx, participantData, giveawayName, settings, rotation);
-                encoder.addFrame(ctx);
-            }
-            
-            encoder.finish();
-            
-            const buffer = encoder.out.getData();
-            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
-            
-            if (buffer.length > 10 * 1024 * 1024) {
-                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
-            }
-            
-            return buffer;
-            
-        } catch (error) {
-            logger.error('Failed to generate fixed palette wheel:', error);
-            throw error;
-        }
-    }
-
-    // Generate spinning wheel with fixed palette
+    // Generate spinning wheel with GLOBAL FIXED PALETTE
     async generateFixedPaletteSpinningWheel(participants, winner, giveawayName = 'Giveaway', userOptions = {}) {
         try {
             const participantCount = Object.keys(participants).length;
             const settings = this.getOptimizedSettings(participantCount, userOptions);
-            const participantData = this.prepareParticipantDataFixed(participants);
+            const participantData = this.prepareFixedParticipants(participants);
             
             if (participantData.length === 0) {
                 throw new Error('Cannot spin wheel with no participants');
@@ -396,61 +324,122 @@ class WheelGeneratorFixedPalette {
                 throw new Error(`Winner ${winner} not found in participants`);
             }
             
-            const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
-            
-            // Create encoder with fixed palette
-            const encoder = this.createOptimizedEncoder(settings);
+            // Create encoder with FIXED PALETTE
+            const encoder = this.createFixedPaletteEncoder(settings);
             encoder.start();
             
-            // Calculate winner position
+            // Calculate winning position
             const targetRotation = this.calculateWinnerRotation(participantData, winnerData);
             
-            // Generate frames with FIXED palette
-            await this.generateFixedPaletteSpinFrames(encoder, participantData, giveawayName, targetRotation, settings);
+            // Generate all frames with CONSISTENT colors
+            const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
+            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+            const ctx = canvas.getContext('2d');
+            
+            for (let frame = 0; frame < totalFrames; frame++) {
+                try {
+                    const rotation = this.calculateRotationForFrame(frame, settings, targetRotation);
+                    this.renderFixedFrame(ctx, participantData, giveawayName, settings, rotation);
+                    encoder.addFrame(ctx);
+                } catch (frameError) {
+                    logger.warn(`Error in frame ${frame}:`, frameError);
+                }
+            }
             
             encoder.finish();
-            
             const buffer = encoder.out.getData();
+            
             if (!buffer || buffer.length === 0) {
                 throw new Error('Generated buffer is empty');
             }
             
             const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
-            
             if (buffer.length > 10 * 1024 * 1024) {
-                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB file size limit`);
+                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
+            }
+            
+            logger.success(`Fixed palette wheel generated: ${fileSizeMB}MB, no color flashing`);
+            return buffer;
+            
+        } catch (error) {
+            logger.error('Failed to generate fixed palette wheel:', error);
+            throw error;
+        }
+    }
+
+    // Generate looping wheel with FIXED PALETTE
+    async generateFixedPaletteLoopingWheel(participants, giveawayName = 'Giveaway', userOptions = {}) {
+        try {
+            const participantCount = Object.keys(participants).length;
+            const settings = this.getOptimizedSettings(participantCount, userOptions);
+            const participantData = this.prepareFixedParticipants(participants);
+            
+            if (participantData.length === 0) {
+                return this.generateEmptyWheelGif(giveawayName, settings);
+            }
+            
+            // Create encoder with FIXED PALETTE
+            const encoder = this.createFixedPaletteEncoder(settings);
+            encoder.start();
+            
+            // Generate smooth looping animation
+            const totalFrames = Math.min(60, Math.max(40, participantCount * 1.5));
+            const rotationPerFrame = (2 * Math.PI) / totalFrames;
+            
+            const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
+            const ctx = canvas.getContext('2d');
+            
+            for (let frame = 0; frame < totalFrames; frame++) {
+                const rotation = frame * rotationPerFrame;
+                this.renderFixedFrame(ctx, participantData, giveawayName, settings, rotation);
+                encoder.addFrame(ctx);
+            }
+            
+            encoder.finish();
+            const buffer = encoder.out.getData();
+            
+            const fileSizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+            if (buffer.length > 10 * 1024 * 1024) {
+                throw new Error(`Generated wheel (${fileSizeMB}MB) exceeds Discord's 10MB limit`);
             }
             
             return buffer;
             
         } catch (error) {
-            logger.error('Failed to generate fixed palette spinning wheel:', error);
+            logger.error('Failed to generate fixed palette looping wheel:', error);
             throw error;
         }
     }
 
-    async generateFixedPaletteSpinFrames(encoder, participantData, giveawayName, targetRotation, settings) {
-        const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
-        const ctx = canvas.getContext('2d');
+    // Utility methods (same as before but optimized)
+    getOptimizedSettings(participantCount, userOptions = {}) {
+        const settings = { ...this.defaultSettings };
+        Object.assign(settings, userOptions);
         
-        let currentRotation = 0;
-        const totalFrames = Object.values(settings.phases).reduce((sum, frames) => sum + frames, 0);
-        
-        // Generate all phases with consistent rotation progression
-        for (let frame = 0; frame < totalFrames; frame++) {
-            try {
-                // Calculate rotation based on frame and phase
-                const progress = frame / totalFrames;
-                const rotation = this.calculateRotationForFrame(frame, settings, targetRotation);
-                
-                // Render frame with FIXED palette only
-                this.renderFixedPaletteFrame(ctx, participantData, giveawayName, settings, rotation);
-                encoder.addFrame(ctx);
-                
-            } catch (frameError) {
-                logger.warn(`Error in fixed palette frame ${frame}:`, frameError);
-            }
+        // Optimize for fixed palette
+        if (participantCount > 15) {
+            settings.quality = Math.max(12, settings.quality - 3); // Better quality for more participants
+            settings.frameDelay = Math.max(50, settings.frameDelay + 10);
         }
+        
+        if (participantCount > 30) {
+            settings.canvasSize = Math.min(settings.canvasSize, 450);
+            settings.frameDelay = Math.max(60, settings.frameDelay + 20);
+        }
+        
+        settings.centerX = settings.canvasSize / 2;
+        settings.centerY = settings.canvasSize / 2;
+        settings.wheelRadius = Math.min(settings.wheelRadius, (settings.canvasSize * 0.46) - 10);
+        settings.hubRadius = Math.max(25, Math.min(settings.wheelRadius * 0.15, 50));
+        
+        return settings;
+    }
+
+    calculateWinnerRotation(participants, winner) {
+        const winnerMidAngle = (winner.startAngle + winner.endAngle) / 2;
+        const targetAngle = (Math.PI * 3/2) - winnerMidAngle;
+        const fullRotations = 6 + Math.random() * 4;
+        return targetAngle + (fullRotations * 2 * Math.PI);
     }
 
     calculateRotationForFrame(frame, settings, targetRotation) {
@@ -480,39 +469,8 @@ class WheelGeneratorFixedPalette {
             return initialRotation + (targetRotation - initialRotation) * easeProgress;
         }
         
-        // Final phases - stay at target rotation
+        // Final phases
         return targetRotation;
-    }
-
-    // Utility methods (unchanged)
-    getOptimizedSettings(participantCount, userOptions = {}) {
-        const settings = { ...this.defaultSettings };
-        Object.assign(settings, userOptions);
-        
-        if (participantCount > 15) {
-            settings.quality = Math.min(18, settings.quality + 3);
-            settings.frameDelay = Math.max(50, settings.frameDelay + 10);
-        }
-        
-        if (participantCount > 30) {
-            settings.canvasSize = Math.min(settings.canvasSize, 450);
-            settings.quality = Math.min(20, settings.quality + 5);
-            settings.frameDelay = Math.max(60, settings.frameDelay + 20);
-        }
-        
-        settings.centerX = settings.canvasSize / 2;
-        settings.centerY = settings.canvasSize / 2;
-        settings.wheelRadius = Math.min(settings.wheelRadius, (settings.canvasSize * 0.46) - 10);
-        settings.hubRadius = Math.max(25, Math.min(settings.wheelRadius * 0.15, 50));
-        
-        return settings;
-    }
-
-    calculateWinnerRotation(participantData, winner) {
-        const winnerMidAngle = (winner.startAngle + winner.endAngle) / 2;
-        const targetAngle = (Math.PI * 3/2) - winnerMidAngle;
-        const fullRotations = 6 + Math.random() * 4;
-        return targetAngle + (fullRotations * 2 * Math.PI);
     }
 
     easeInCubic(t) { return t * t * t; }
@@ -546,13 +504,12 @@ class WheelGeneratorFixedPalette {
         return true;
     }
 
-    wrapTextImproved(text, maxWidth, ctx, fontSize) {
+    wrapText(text, maxWidth, ctx) {
         const words = text.split(' ');
         const lines = [];
         
         if (words.length === 1) {
-            const textWidth = ctx.measureText(text).width;
-            if (textWidth <= maxWidth) {
+            if (ctx.measureText(text).width <= maxWidth) {
                 lines.push(text);
             } else {
                 let truncated = text;
@@ -588,42 +545,36 @@ class WheelGeneratorFixedPalette {
     }
 
     async generateEmptyWheelGif(giveawayName, settings) {
-        const encoder = this.createOptimizedEncoder(settings);
+        const encoder = this.createFixedPaletteEncoder(settings);
         encoder.start();
         
         const canvas = createCanvas(settings.canvasSize, settings.canvasSize);
         const ctx = canvas.getContext('2d');
         
         for (let frame = 0; frame < 40; frame++) {
-            try {
-                ctx.fillStyle = this.fixedPalette.backgrounds[0];
-                ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
-                
-                ctx.beginPath();
-                ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = this.fixedPalette.backgrounds[0];
-                ctx.fill();
-                ctx.strokeStyle = this.fixedPalette.ui.hubBorder;
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                
-                const fontSize = Math.max(18, settings.canvasSize / 20);
-                ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = this.fixedPalette.shadows.dark;
-                ctx.fillText('No Participants', settings.centerX, settings.centerY - 15);
-                
-                ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
-                ctx.fillStyle = this.fixedPalette.shadows.medium;
-                ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
-                
-                this.drawFixedPaletteHub(ctx, giveawayName, settings);
-                
-                encoder.addFrame(ctx);
-            } catch (frameError) {
-                logger.warn(`Error in empty wheel frame ${frame}:`, frameError);
-            }
+            ctx.fillStyle = this.globalColorPalette.background;
+            ctx.fillRect(0, 0, settings.canvasSize, settings.canvasSize);
+            
+            ctx.beginPath();
+            ctx.arc(settings.centerX, settings.centerY, settings.wheelRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = this.globalColorPalette.background;
+            ctx.fill();
+            ctx.strokeStyle = this.globalColorPalette.hubBorder;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            const fontSize = Math.max(18, settings.canvasSize / 20);
+            ctx.font = `bold ${fontSize}px ${this.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = this.globalColorPalette.textDark;
+            ctx.fillText('No Participants', settings.centerX, settings.centerY - 15);
+            
+            ctx.font = `${fontSize - 4}px ${this.fontFamily}`;
+            ctx.fillText('Add purchases to populate wheel', settings.centerX, settings.centerY + 15);
+            
+            this.drawFixedHub(ctx, giveawayName, settings);
+            encoder.addFrame(ctx);
         }
         
         encoder.finish();
@@ -631,4 +582,4 @@ class WheelGeneratorFixedPalette {
     }
 }
 
-module.exports = new WheelGeneratorFixedPalette();
+module.exports = new WheelGeneratorFixed();
