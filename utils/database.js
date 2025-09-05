@@ -65,7 +65,7 @@ class Database {
 
     async initialize() {
         try {
-            logger.info('💾 Initializing database system...');
+            logger.info('ðŸ’¾ Initializing database system...');
 
             // Create data directories
             await fs.ensureDir(this.dataDir);

@@ -80,25 +80,25 @@ class Logger {
     // Special methods for bot lifecycle events
     startup(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const rocket = '🚀'.padEnd(3);
+        const rocket = 'ðŸš€'.padEnd(3);
         console.log(`${timestamp} ${rocket} ${message}`.info, ...args);
     }
 
     success(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const check = '✅'.padEnd(3);
+        const check = 'âœ…'.padEnd(3);
         console.log(`${timestamp} ${check} ${message}`.info, ...args);
     }
 
     failure(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const cross = '❌'.padEnd(3);
+        const cross = 'âŒ'.padEnd(3);
         console.error(`${timestamp} ${cross} ${message}`.error, ...args);
     }
 
     warning(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const triangle = '⚠️ '.padEnd(3);
+        const triangle = 'âš ï¸ '.padEnd(3);
         console.warn(`${timestamp} ${triangle} ${message}`.warn, ...args);
     }
 
@@ -137,14 +137,14 @@ class Logger {
     // Terminal interface logging
     terminal(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const terminal = '🖥️ '.padEnd(3);
+        const terminal = 'ðŸ–¥ï¸ '.padEnd(3);
         console.log(`${timestamp} ${terminal} ${message}`.cyan, ...args);
     }
 
     // Giveaway related logging
     giveaway(action, giveawayId, details = '') {
         const timestamp = this.formatTimestamp().timestamp;
-        const gift = '🎁'.padEnd(3);
+        const gift = 'ðŸŽ'.padEnd(3);
         const message = `${action} ${giveawayId} ${details}`.trim();
         
         console.log(`${timestamp} ${gift} ${message}`.rainbow);
@@ -153,7 +153,7 @@ class Logger {
     // Purchase related logging
     purchase(action, purchaseId, details = '') {
         const timestamp = this.formatTimestamp().timestamp;
-        const money = '💰'.padEnd(3);
+        const money = 'ðŸ’°'.padEnd(3);
         const message = `${action} ${purchaseId} ${details}`.trim();
         
         console.log(`${timestamp} ${money} ${message}`.yellow);
@@ -162,7 +162,7 @@ class Logger {
     // Wheel spin logging
     wheel(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const wheel = '🎡'.padEnd(3);
+        const wheel = 'ðŸŽ¡'.padEnd(3);
         
         console.log(`${timestamp} ${wheel} ${message}`.rainbow, ...args);
     }
@@ -170,7 +170,7 @@ class Logger {
     // Backup system logging
     backup(message, ...args) {
         const timestamp = this.formatTimestamp().timestamp;
-        const box = '📦'.padEnd(3);
+        const box = 'ðŸ“¦'.padEnd(3);
         
         console.log(`${timestamp} ${box} ${message}`.blue, ...args);
     }
@@ -180,7 +180,7 @@ class Logger {
         if (!this.shouldLog('DEBUG')) return;
         
         const timestamp = this.formatTimestamp().timestamp;
-        const stopwatch = '⏱️ '.padEnd(3);
+        const stopwatch = 'â±ï¸ '.padEnd(3);
         const message = `${operation} completed in ${duration}ms`;
         
         console.log(`${timestamp} ${stopwatch} ${message}`.gray);

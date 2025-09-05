@@ -146,7 +146,7 @@ class APIHandler {
     // Fortnite API - Cosmetics fetching
     async fetchAndCacheCosmetics() {
         try {
-            logger.info('🎨 Fetching all Fortnite cosmetics from API...');
+            logger.info('ðŸŽ¨ Fetching all Fortnite cosmetics from API...');
             
             const startTime = Date.now();
             const response = await this.fortniteApiClient.get('/v2/cosmetics/br');
@@ -546,7 +546,7 @@ class APIHandler {
     // Batch pricing updates (for maintenance)
     async updatePricingForItems(items, delayMs = 1000) {
         try {
-            logger.info(`🔄 Starting batch pricing update for ${items.length} items...`);
+            logger.info(`ðŸ”„ Starting batch pricing update for ${items.length} items...`);
             
             let updated = 0;
             let failed = 0;
@@ -567,10 +567,10 @@ class APIHandler {
                     if (pricingData && pricingData.price) {
                         await database.updateCosmeticPrice(item.id, pricingData.price);
                         updated++;
-                        logger.debug(`✅ Updated pricing: ${item.name} = ${pricingData.price} V-Bucks`);
+                        logger.debug(`âœ… Updated pricing: ${item.name} = ${pricingData.price} V-Bucks`);
                     } else {
                         failed++;
-                        logger.debug(`❌ No pricing found: ${item.name}`);
+                        logger.debug(`âŒ No pricing found: ${item.name}`);
                     }
                     
                     // Rate limiting delay
@@ -590,7 +590,7 @@ class APIHandler {
                 }
             }
             
-            logger.info(`✅ Batch pricing update complete: ${updated} updated, ${failed} failed`);
+            logger.info(`âœ… Batch pricing update complete: ${updated} updated, ${failed} failed`);
             return { updated, failed };
         } catch (error) {
             logger.error('Batch pricing update failed:', error);
@@ -801,7 +801,7 @@ class APIHandler {
     // Maintenance utilities
     async refreshCosmetics() {
         try {
-            logger.info('🔄 Refreshing cosmetics data...');
+            logger.info('ðŸ”„ Refreshing cosmetics data...');
             return await this.fetchAndCacheCosmetics();
         } catch (error) {
             logger.error('Failed to refresh cosmetics:', error);
@@ -811,7 +811,7 @@ class APIHandler {
 
     async clearCache() {
         try {
-            logger.info('🗑️  Clearing API cache...');
+            logger.info('ðŸ—‘ï¸  Clearing API cache...');
             
             // Reset request counters
             this.requestCounts = {

@@ -35,7 +35,7 @@ module.exports = {
             const giveaway = await database.getGiveaway(giveawayInput);
             if (!giveaway) {
                 return interaction.editReply({
-                    content: `❌ Giveaway not found: **${giveawayInput}**\nUse \`/listgaws\` to see available giveaways.`,
+                    content: `âŒ Giveaway not found: **${giveawayInput}**\nUse \`/listgaws\` to see available giveaways.`,
                     ephemeral: true
                 });
             }
@@ -44,7 +44,7 @@ module.exports = {
             const participantCount = Object.keys(giveaway.participants).length;
             if (participantCount === 0) {
                 return interaction.editReply({
-                    content: `❌ No participants in giveaway **${giveaway.name}**\nAdd purchases with \`/addpurchase\` first.`,
+                    content: `âŒ No participants in giveaway **${giveaway.name}**\nAdd purchases with \`/addpurchase\` first.`,
                     ephemeral: true
                 });
             }
@@ -52,7 +52,7 @@ module.exports = {
             // Check if giveaway already has a winner
             if (giveaway.winner) {
                 return interaction.editReply({
-                    content: `⚠️ Giveaway **${giveaway.name}** already has a winner: <@${giveaway.winner}>\nUse \`/editgaw\` to reset the winner if needed.`,
+                    content: `âš ï¸ Giveaway **${giveaway.name}** already has a winner: <@${giveaway.winner}>\nUse \`/editgaw\` to reset the winner if needed.`,
                     ephemeral: true
                 });
             }
@@ -62,7 +62,7 @@ module.exports = {
                 wheelGenerator.validateWheelData(giveaway.participants, giveaway.name);
             } catch (validationError) {
                 return interaction.editReply({
-                    content: `❌ Invalid wheel data: ${validationError.message}`,
+                    content: `âŒ Invalid wheel data: ${validationError.message}`,
                     ephemeral: true
                 });
             }
@@ -71,7 +71,7 @@ module.exports = {
             const winner = wheelGenerator.selectRandomWinner(giveaway.participants);
             if (!winner) {
                 return interaction.editReply({
-                    content: '❌ Failed to select winner. Please try again.',
+                    content: 'âŒ Failed to select winner. Please try again.',
                     ephemeral: true
                 });
             }
@@ -79,15 +79,15 @@ module.exports = {
             // Send initial spinning message with timestamp
             const spinningEmbed = new EmbedBuilder()
                 .setColor('#FFD700')
-                .setTitle('🎡 Spinning the Wheel!')
+                .setTitle('ðŸŽ¡ Spinning the Wheel!')
                 .setDescription(
                     skipAnimation 
                         ? `Selecting winner for **${giveaway.name}**...`
-                        : `Generating animated wheel for **${giveaway.name}**...\n\n⏳ This may take a few seconds for the best experience...`
+                        : `Generating animated wheel for **${giveaway.name}**...\n\nâ³ This may take a few seconds for the best experience...`
                 )
                 .addFields(
                     {
-                        name: '🎯 Wheel Details',
+                        name: 'ðŸŽ¯ Wheel Details',
                         value: [
                             `**Participants:** ${participantCount}`,
                             `**Total Entries:** ${giveaway.totalEntries}`,
@@ -97,7 +97,7 @@ module.exports = {
                         inline: false
                     },
                     {
-                        name: '🕐 Spin Time',
+                        name: 'ðŸ• Spin Time',
                         value: this.formatSpinTimestamp(spinTime),
                         inline: false
                     }
@@ -180,16 +180,16 @@ module.exports = {
             // Create winner announcement embed with enhanced WheelOfNames style
             const winnerEmbed = new EmbedBuilder()
                 .setColor('#28A745')
-                .setTitle('🎉 WINNER SELECTED! 🎉')
+                .setTitle('ðŸŽ‰ WINNER SELECTED! ðŸŽ‰')
                 .setDescription(`**${giveaway.name}** has been completed!`)
                 .addFields(
                     {
-                        name: '🏆 Winner',
+                        name: 'ðŸ† Winner',
                         value: `<@${winner.userId}>`,
                         inline: true
                     },
                     {
-                        name: '🎫 Winning Details',
+                        name: 'ðŸŽ« Winning Details',
                         value: [
                             `**Entries:** ${winner.entries}`,
                             `**V-Bucks Spent:** ${winner.vbucksSpent}`,
@@ -198,7 +198,7 @@ module.exports = {
                         inline: true
                     },
                     {
-                        name: '📊 Final Statistics',
+                        name: 'ðŸ“Š Final Statistics',
                         value: [
                             `**Total Participants:** ${participantCount}`,
                             `**Total Entries:** ${giveaway.totalEntries}`,
@@ -207,7 +207,7 @@ module.exports = {
                         inline: false
                     },
                     {
-                        name: '🕐 Spin Information',
+                        name: 'ðŸ• Spin Information',
                         value: this.formatSpinTimestamp(spinTime),
                         inline: false
                     }
@@ -221,20 +221,20 @@ module.exports = {
             // Add wheel generation status
             if (skipAnimation) {
                 winnerEmbed.addFields({
-                    name: '⚡ Quick Selection',
+                    name: 'âš¡ Quick Selection',
                     value: 'Animation was skipped for faster results.',
                     inline: false
                 });
             } else if (wheelError) {
                 winnerEmbed.addFields({
-                    name: '⚠️ Animation Status',
+                    name: 'âš ï¸ Animation Status',
                     value: `Fixed-palette wheel animation could not be generated: ${this.getSimpleErrorMessage(wheelError.message)}\n\n*Winner selection was completed successfully.*`,
                     inline: false
                 });
             } else if (wheelBuffer) {
                 const fileSizeMB = (wheelBuffer.length / 1024 / 1024).toFixed(1);
                 winnerEmbed.addFields({
-                    name: '🎡 Fixed-Palette Wheel Animation',
+                    name: 'ðŸŽ¡ Fixed-Palette Wheel Animation',
                     value: `Generated stable wheel animation (${fileSizeMB}MB) with **NO COLOR FLASHING** using fixed global color palette!`,
                     inline: false
                 });
@@ -265,21 +265,21 @@ module.exports = {
             logger.error('Failed to spin wheel:', error);
             
             // Determine error message based on error type
-            let errorMessage = '❌ Failed to spin wheel. ';
+            let errorMessage = 'âŒ Failed to spin wheel. ';
             let troubleshooting = [
-                '• Ensure Canvas dependencies are installed: `npm install canvas`',
-                '• Check if fixed-palette wheel generator module is working',
-                '• Try using the `no-animation: True` option for large giveaways',
-                '• Verify sufficient memory and disk space'
+                'â€¢ Ensure Canvas dependencies are installed: `npm install canvas`',
+                'â€¢ Check if fixed-palette wheel generator module is working',
+                'â€¢ Try using the `no-animation: True` option for large giveaways',
+                'â€¢ Verify sufficient memory and disk space'
             ];
             
             if (error.message.includes('too large') || error.message.includes('limit')) {
                 errorMessage += 'Generated wheel animation exceeds Discord\'s 10MB file size limit.';
                 troubleshooting = [
-                    '• Use the `no-animation: True` option to skip the wheel animation',
-                    '• Reduce the number of participants if possible',
-                    '• The fixed-palette generator should produce smaller files',
-                    '• Winner selection will still work without animation'
+                    'â€¢ Use the `no-animation: True` option to skip the wheel animation',
+                    'â€¢ Reduce the number of participants if possible',
+                    'â€¢ The fixed-palette generator should produce smaller files',
+                    'â€¢ Winner selection will still work without animation'
                 ];
             } else if (error.message.includes('Canvas')) {
                 errorMessage += 'Canvas/image generation error. Please ensure all dependencies are installed.';
@@ -295,10 +295,10 @@ module.exports = {
 
             const failureEmbed = new EmbedBuilder()
                 .setColor('#DC3545')
-                .setTitle('❌ Wheel Spin Failed')
+                .setTitle('âŒ Wheel Spin Failed')
                 .setDescription(errorMessage)
                 .addFields({
-                    name: '🔧 Troubleshooting',
+                    name: 'ðŸ”§ Troubleshooting',
                     value: troubleshooting.join('\n'),
                     inline: false
                 })
@@ -322,9 +322,9 @@ module.exports = {
         const pacific = moment(spinTime).tz('America/Los_Angeles');
         
         return [
-            `🌍 **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
-            `🇺🇸 **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
-            `🇺🇸 **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
+            `ðŸŒ **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `ðŸ‡ºðŸ‡¸ **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `ðŸ‡ºðŸ‡¸ **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
         ].join('\n');
     },
 
@@ -353,11 +353,11 @@ module.exports = {
             if (member) {
                 const notificationEmbed = new EmbedBuilder()
                     .setColor('#28A745')
-                    .setTitle('🎉 Congratulations! You Won!')
+                    .setTitle('ðŸŽ‰ Congratulations! You Won!')
                     .setDescription(`You have won the giveaway: **${giveaway.name}**!`)
                     .addFields(
                         {
-                            name: '🎯 Your Winning Details',
+                            name: 'ðŸŽ¯ Your Winning Details',
                             value: [
                                 `**Your Entries:** ${winner.entries}`,
                                 `**V-Bucks Spent:** ${winner.vbucksSpent}`,
@@ -367,7 +367,7 @@ module.exports = {
                             inline: false
                         },
                         {
-                            name: '🏆 Competition Details',
+                            name: 'ðŸ† Competition Details',
                             value: [
                                 `**Total Participants:** ${Object.keys(giveaway.participants).length}`,
                                 `**Total Entries:** ${giveaway.totalEntries}`,

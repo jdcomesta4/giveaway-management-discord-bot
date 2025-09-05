@@ -25,7 +25,7 @@ class WheelGeneratorEnhanced {
         this.defaultSettings = {
             canvasSize: 500,
             wheelRadius: 220,
-            hubRadius: 50,        // INCREASED: Bigger hub for long giveaway names
+            hubRadius: 85,        // INCREASED: Bigger hub for long giveaway names
             fps: 25,
             quality: 1,
             frameDelay: 40,
@@ -41,7 +41,7 @@ class WheelGeneratorEnhanced {
             // ENHANCED: Better text settings
             text: {
                 minFontSize: 12,      // INCREASED: Bigger minimum font
-                maxFontSize: 20,      // INCREASED: Bigger maximum font
+                maxFontSize: 16,      // INCREASED: Bigger maximum font
                 boldWeight: 'bold',   // More bold text
                 outlineWidth: 3       // INCREASED: Thicker white outline
             }
@@ -204,7 +204,7 @@ class WheelGeneratorEnhanced {
 
     // ENHANCED: Get slice color at specific angle (for arrow color matching)
     getSliceColorAtAngle(participants, angle) {
-        // Normalize angle to 0-2π range
+        // Normalize angle to 0-2Ï€ range
         const normalizedAngle = ((angle % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
         
         // Find which participant slice the angle falls into
@@ -541,7 +541,7 @@ class WheelGeneratorEnhanced {
         settings.quality = 1;
         
         // ENHANCED: Bigger hub radius for long giveaway names
-        settings.hubRadius = Math.max(45, Math.min(settings.wheelRadius * 0.22, 65)); // Increased from 0.15
+        settings.hubRadius = Math.max(45, Math.min(settings.wheelRadius * 0.30, 65)); // Increased from 0.15
         
         // Adjust frame rate based on participant count
         if (participantCount > 15) {

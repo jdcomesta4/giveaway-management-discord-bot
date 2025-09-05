@@ -60,7 +60,7 @@ class TerminalServer {
             
             // Disconnect all clients
             this.clients.forEach((clientInfo, socket) => {
-                socket.write(colors.yellow('\n🛑 Server shutting down...\n'));
+                socket.write(colors.yellow('\nðŸ›‘ Server shutting down...\n'));
                 socket.end();
             });
             
@@ -126,16 +126,16 @@ class TerminalServer {
 
     sendWelcome(socket) {
         const banner = `
-${colors.rainbow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')}
-${colors.bold.blue('              🎁 FORTNITE GIVEAWAY BOT - TERMINAL INTERFACE 🎁              ')}
-${colors.rainbow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')}
+${colors.rainbow('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”')}
+${colors.bold.blue('              ðŸŽ FORTNITE GIVEAWAY BOT - TERMINAL INTERFACE ðŸŽ              ')}
+${colors.rainbow('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”')}
 
-${colors.green('✅ Connected to bot successfully!')}
-${colors.yellow('💡 This is a secure admin terminal interface')}
-${colors.cyan('🔧 All Discord commands are available here without permissions')}
-${colors.gray('📝 Type "help" for available commands or "exit" to disconnect')}
+${colors.green('âœ… Connected to bot successfully!')}
+${colors.yellow('ðŸ’¡ This is a secure admin terminal interface')}
+${colors.cyan('ðŸ”§ All Discord commands are available here without permissions')}
+${colors.gray('ðŸ“ Type "help" for available commands or "exit" to disconnect')}
 
-${colors.rainbow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')}
+${colors.rainbow('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”')}
 `;
         socket.write(banner);
     }
@@ -195,12 +195,12 @@ ${colors.rainbow('━━━━━━━━━━━━━━━━━━━━�
 
             case 'exit':
             case 'quit':
-                socket.write(colors.yellow('\n👋 Goodbye! Disconnecting...\n'));
+                socket.write(colors.yellow('\nðŸ‘‹ Goodbye! Disconnecting...\n'));
                 socket.end();
                 return true;
 
             case 'restart':
-                socket.write(colors.yellow('\n🔄 Bot restart requested...\n'));
+                socket.write(colors.yellow('\nðŸ”„ Bot restart requested...\n'));
                 // Note: Actual restart would need to be implemented in main bot
                 this.sendInfo(socket, 'Restart command received (implement restart logic in main bot)');
                 return true;
@@ -304,28 +304,28 @@ ${colors.rainbow('━━━━━━━━━━━━━━━━━━━━�
 
     // Response formatting methods
     sendSuccess(socket, message) {
-        socket.write(colors.green(`✅ ${message}\n`));
+        socket.write(colors.green(`âœ… ${message}\n`));
     }
 
     sendError(socket, message) {
-        socket.write(colors.red(`❌ ${message}\n`));
+        socket.write(colors.red(`âŒ ${message}\n`));
     }
 
     sendWarning(socket, message) {
-        socket.write(colors.yellow(`⚠️  ${message}\n`));
+        socket.write(colors.yellow(`âš ï¸  ${message}\n`));
     }
 
     sendInfo(socket, message) {
-        socket.write(colors.cyan(`ℹ️  ${message}\n`));
+        socket.write(colors.cyan(`â„¹ï¸  ${message}\n`));
     }
 
     sendBotResponse(socket, message) {
-        socket.write(colors.white(`📋 ${message}\n`));
+        socket.write(colors.white(`ðŸ“‹ ${message}\n`));
     }
 
     sendEmbed(socket, embed) {
-        let output = colors.blue('📊 EMBED\n');
-        output += colors.gray('━'.repeat(50) + '\n');
+        let output = colors.blue('ðŸ“Š EMBED\n');
+        output += colors.gray('â”'.repeat(50) + '\n');
         
         if (embed.title) {
             output += colors.bold.white(`${embed.title}\n`);
@@ -341,7 +341,7 @@ ${colors.rainbow('━━━━━━━━━━━━━━━━━━━━�
             });
         }
         
-        output += colors.gray('━'.repeat(50) + '\n');
+        output += colors.gray('â”'.repeat(50) + '\n');
         socket.write(output);
     }
 
@@ -359,8 +359,8 @@ ${colors.rainbow('━━━━━━━━━━━━━━━━━━━━�
         }
 
         const helpText = `
-${colors.blue.bold('🔧 AVAILABLE COMMANDS')}
-${colors.gray('━'.repeat(60))}
+${colors.blue.bold('ðŸ”§ AVAILABLE COMMANDS')}
+${colors.gray('â”'.repeat(60))}
 
 ${colors.cyan.bold('Terminal Commands:')}
 ${colors.white('  help [command]     ')} - Show this help or help for specific command
@@ -393,9 +393,9 @@ ${colors.white('  creatorcode       ')} - Check creator code
 ${colors.white('  time              ')} - Show current time
 ${colors.white('  backup            ')} - Backup operations
 
-${colors.gray('━'.repeat(60))}
-${colors.yellow('💡 All commands work exactly like Discord commands but without permissions')}
-${colors.yellow('🔗 Use "help <command>" for detailed usage information')}
+${colors.gray('â”'.repeat(60))}
+${colors.yellow('ðŸ’¡ All commands work exactly like Discord commands but without permissions')}
+${colors.yellow('ðŸ”— Use "help <command>" for detailed usage information')}
 `;
         
         socket.write(helpText);
@@ -405,27 +405,27 @@ ${colors.yellow('🔗 Use "help <command>" for detailed usage information')}
         const database = require('./database');
         
         const status = `
-${colors.blue.bold('🔧 BOT STATUS')}
-${colors.gray('━'.repeat(50))}
+${colors.blue.bold('ðŸ”§ BOT STATUS')}
+${colors.gray('â”'.repeat(50))}
 ${colors.green('Bot Status:')} ${this.bot?.isReady ? colors.green('Ready') : colors.red('Not Ready')}
 ${colors.green('Discord:')} ${this.bot?.client?.user?.tag || colors.red('Not Connected')}
 ${colors.green('Guilds:')} ${this.bot?.client?.guilds?.cache?.size || 0}
 ${colors.green('Commands:')} ${this.bot?.commands?.size || 0}
 
-${colors.blue.bold('🖥️  TERMINAL SERVER')}
-${colors.gray('━'.repeat(50))}
+${colors.blue.bold('ðŸ–¥ï¸  TERMINAL SERVER')}
+${colors.gray('â”'.repeat(50))}
 ${colors.green('Status:')} ${colors.green('Running')}
 ${colors.green('Address:')} ${this.host}:${this.port}
 ${colors.green('Clients:')} ${this.clients.size}
 ${colors.green('Uptime:')} ${this.getUptime()}
 
-${colors.blue.bold('💾 DATABASE')}
-${colors.gray('━'.repeat(50))}
+${colors.blue.bold('ðŸ’¾ DATABASE')}
+${colors.gray('â”'.repeat(50))}
 ${colors.green('Giveaways:')} ${database?.cache?.giveaways?.length || 0}
 ${colors.green('Purchases:')} ${database?.cache?.purchases?.length || 0}
 ${colors.green('Cosmetics:')} ${database?.cache?.cosmetics?.items?.length || 0}
 
-${colors.gray('━'.repeat(50))}
+${colors.gray('â”'.repeat(50))}
 `;
         
         socket.write(status);
@@ -433,35 +433,35 @@ ${colors.gray('━'.repeat(50))}
 
     sendHistory(socket) {
         if (this.commandHistory.length === 0) {
-            socket.write(colors.yellow('📝 No command history available\n'));
+            socket.write(colors.yellow('ðŸ“ No command history available\n'));
             return;
         }
 
-        let historyText = `${colors.blue.bold('📝 COMMAND HISTORY')}\n`;
-        historyText += colors.gray('━'.repeat(50)) + '\n';
+        let historyText = `${colors.blue.bold('ðŸ“ COMMAND HISTORY')}\n`;
+        historyText += colors.gray('â”'.repeat(50)) + '\n';
         
         this.commandHistory.slice(0, 20).forEach((cmd, index) => {
             historyText += colors.gray(`${index + 1}.`.padStart(3)) + ` ${colors.white(cmd)}\n`;
         });
         
-        historyText += colors.gray('━'.repeat(50)) + '\n';
+        historyText += colors.gray('â”'.repeat(50)) + '\n';
         socket.write(historyText);
     }
 
     sendClientsList(socket) {
-        let clientsText = `${colors.blue.bold('👥 CONNECTED CLIENTS')}\n`;
-        clientsText += colors.gray('━'.repeat(50)) + '\n';
+        let clientsText = `${colors.blue.bold('ðŸ‘¥ CONNECTED CLIENTS')}\n`;
+        clientsText += colors.gray('â”'.repeat(50)) + '\n';
         
         this.clients.forEach((clientInfo, clientSocket) => {
             const isCurrentClient = clientSocket === socket;
-            const marker = isCurrentClient ? colors.green('● (you)') : colors.gray('●');
+            const marker = isCurrentClient ? colors.green('â— (you)') : colors.gray('â—');
             
             clientsText += `${marker} ${colors.white(clientInfo.id)}\n`;
             clientsText += `   ${colors.gray('Connected:')} ${clientInfo.connectedAt.toLocaleString()}\n`;
             clientsText += `   ${colors.gray('Commands:')} ${clientInfo.commandCount}\n\n`;
         });
         
-        clientsText += colors.gray('━'.repeat(50)) + '\n';
+        clientsText += colors.gray('â”'.repeat(50)) + '\n';
         socket.write(clientsText);
     }
 
@@ -493,7 +493,7 @@ ${colors.gray('━'.repeat(50))}
         const clientInfo = this.clients.get(socket);
         logger.warn(`Terminal client timeout: ${clientInfo?.id || 'unknown'}`);
         
-        socket.write(colors.yellow('\n⏰ Connection timeout. Disconnecting...\n'));
+        socket.write(colors.yellow('\nâ° Connection timeout. Disconnecting...\n'));
         socket.end();
     }
 
@@ -538,7 +538,7 @@ ${colors.gray('━'.repeat(50))}
         this.clients.forEach((clientInfo, socket) => {
             if (socket !== excludeSocket && !socket.destroyed) {
                 try {
-                    socket.write(`${colors.yellow('📢 BROADCAST:')} ${message}\n`);
+                    socket.write(`${colors.yellow('ðŸ“¢ BROADCAST:')} ${message}\n`);
                     clientInfo.rl.prompt();
                 } catch (error) {
                     logger.warn('Failed to broadcast to client:', error);
@@ -550,10 +550,10 @@ ${colors.gray('━'.repeat(50))}
     // Send notification to all clients
     notifyClients(type, message) {
         const icon = {
-            info: 'ℹ️',
-            warning: '⚠️',
-            error: '❌',
-            success: '✅'
+            info: 'â„¹ï¸',
+            warning: 'âš ï¸',
+            error: 'âŒ',
+            success: 'âœ…'
         };
 
         const color = {
@@ -563,7 +563,7 @@ ${colors.gray('━'.repeat(50))}
             success: colors.green
         };
 
-        const formattedMessage = `${icon[type] || 'ℹ️'} ${color[type] || colors.white}${message}${colors.reset}\n`;
+        const formattedMessage = `${icon[type] || 'â„¹ï¸'} ${color[type] || colors.white}${message}${colors.reset}\n`;
 
         this.clients.forEach((clientInfo, socket) => {
             if (!socket.destroyed) {

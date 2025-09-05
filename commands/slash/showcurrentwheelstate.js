@@ -24,7 +24,7 @@ module.exports = {
             const giveaway = await database.getGiveaway(giveawayInput);
             if (!giveaway) {
                 return interaction.editReply({
-                    content: `❌ Giveaway not found: **${giveawayInput}**\nUse \`/listgaws\` to see available giveaways.`,
+                    content: `âŒ Giveaway not found: **${giveawayInput}**\nUse \`/listgaws\` to see available giveaways.`,
                     ephemeral: true
                 });
             }
@@ -34,14 +34,14 @@ module.exports = {
             // Create status embed with WheelOfNames style
             const statusEmbed = new EmbedBuilder()
                 .setColor(giveaway.active ? '#007BFF' : '#6C757D')
-                .setTitle(`🎡 Current Wheel State: ${giveaway.name}`)
+                .setTitle(`ðŸŽ¡ Current Wheel State: ${giveaway.name}`)
                 .setDescription(`Live view of participants and their entries`)
                 .addFields(
                     {
-                        name: '📋 Giveaway Information',
+                        name: 'ðŸ“‹ Giveaway Information',
                         value: [
                             `**ID:** \`${giveaway.id}\``,
-                            `**Status:** ${giveaway.active ? '🟢 Active' : '🔴 Inactive'}`,
+                            `**Status:** ${giveaway.active ? 'ðŸŸ¢ Active' : 'ðŸ”´ Inactive'}`,
                             `**Channel:** <#${giveaway.channel}>`,
                             `**V-Bucks per Entry:** ${giveaway.vbucksPerEntry}`,
                             `**Winner:** ${giveaway.winner ? `<@${giveaway.winner}>` : 'Not selected'}`
@@ -49,7 +49,7 @@ module.exports = {
                         inline: false
                     },
                     {
-                        name: '📊 Current Statistics',
+                        name: 'ðŸ“Š Current Statistics',
                         value: [
                             `**Total Participants:** ${participantCount}`,
                             `**Total Entries:** ${giveaway.totalEntries || 0}`,
@@ -73,21 +73,21 @@ module.exports = {
                     const percentage = giveaway.totalEntries > 0 ? 
                         ((entries / giveaway.totalEntries) * 100).toFixed(1) : 0;
                     
-                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🎫';
+                    const medal = index === 0 ? 'ðŸ¥‡' : index === 1 ? 'ðŸ¥ˆ' : index === 2 ? 'ðŸ¥‰' : 'ðŸŽ«';
                     
                     return `${medal} **<@${participant.userId}>**\n` +
-                           `   └ ${entries} entries (${percentage}%) • ${vbucks.toLocaleString()} V-Bucks`;
+                           `   â”” ${entries} entries (${percentage}%) â€¢ ${vbucks.toLocaleString()} V-Bucks`;
                 }).join('\n\n');
 
                 statusEmbed.addFields({
-                    name: `👥 Participants Leaderboard ${participantCount > 10 ? '(Top 10)' : ''}`,
+                    name: `ðŸ‘¥ Participants Leaderboard ${participantCount > 10 ? '(Top 10)' : ''}`,
                     value: participantList,
                     inline: false
                 });
 
                 if (participantCount > 10) {
                     statusEmbed.addFields({
-                        name: '📝 Note',
+                        name: 'ðŸ“ Note',
                         value: `Showing top 10 participants by entries. Total participants: ${participantCount}`,
                         inline: false
                     });
@@ -134,14 +134,14 @@ module.exports = {
 
                     // Add wheel generation info to embed
                     statusEmbed.addFields({
-                        name: '🎡 Fixed-Palette Live Wheel Animation',
+                        name: 'ðŸŽ¡ Fixed-Palette Live Wheel Animation',
                         value: `Generated **stable looping animation** (${fileSizeMB}MB) with **NO COLOR FLASHING**\nShowing real-time participant distribution with consistent colors`,
                         inline: false
                     });
 
                     // Add timestamp information
                     statusEmbed.addFields({
-                        name: '🕐 Generated At',
+                        name: 'ðŸ• Generated At',
                         value: this.formatStateTimestamp(stateTime),
                         inline: false
                     });
@@ -163,14 +163,14 @@ module.exports = {
                     
                     // Send embed without wheel image but with error info
                     statusEmbed.addFields({
-                        name: '⚠️ Wheel Animation',
+                        name: 'âš ï¸ Wheel Animation',
                         value: `Could not generate fixed-palette wheel GIF: ${this.getSimpleErrorMessage(wheelError.message)}\nShowing text summary instead.`,
                         inline: false
                     });
 
                     // Add timestamp information
                     statusEmbed.addFields({
-                        name: '🕐 Generated At',
+                        name: 'ðŸ• Generated At',
                         value: this.formatStateTimestamp(stateTime),
                         inline: false
                     });
@@ -186,14 +186,14 @@ module.exports = {
             } else {
                 // No participants
                 statusEmbed.addFields({
-                    name: '👥 Participants',
+                    name: 'ðŸ‘¥ Participants',
                     value: 'No participants yet. Add purchases with `/addpurchase` to populate the wheel.',
                     inline: false
                 });
 
                 // Add timestamp information
                 statusEmbed.addFields({
-                    name: '🕐 Generated At',
+                    name: 'ðŸ• Generated At',
                     value: this.formatStateTimestamp(stateTime),
                     inline: false
                 });
@@ -213,10 +213,10 @@ module.exports = {
             
             const errorEmbed = new EmbedBuilder()
                 .setColor('#DC3545')
-                .setTitle('❌ Failed to Show Wheel State')
+                .setTitle('âŒ Failed to Show Wheel State')
                 .setDescription('An error occurred while generating the fixed-palette wheel state.')
                 .addFields({
-                    name: '🕐 Error Time',
+                    name: 'ðŸ• Error Time',
                     value: this.formatStateTimestamp(new Date()),
                     inline: false
                 })
@@ -248,9 +248,9 @@ module.exports = {
         const pacific = moment(stateTime).tz('America/Los_Angeles');
         
         return [
-            `🌍 **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
-            `🇺🇸 **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
-            `🇺🇸 **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
+            `ðŸŒ **UTC+1:** ${utc1.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `ðŸ‡ºðŸ‡¸ **Eastern:** ${eastern.format('MMM DD, YYYY - h:mm:ss A')}`,
+            `ðŸ‡ºðŸ‡¸ **Pacific:** ${pacific.format('MMM DD, YYYY - h:mm:ss A')}`
         ].join('\n');
     },
 
